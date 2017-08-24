@@ -1,5 +1,8 @@
 package vasc
 
+import "fmt"
+import "syslog"
+import "errors"
 import "github.com/gin-gonic/gin"
 
 type VascHandler func(c *gin.Context)
