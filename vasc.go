@@ -5,13 +5,13 @@ import "log/syslog"
 import "errors"
 import "github.com/gin-gonic/gin"
 
-type VascHandler func(c *gin.Context)
+type VascHandler gin.HandlerFunc
 
 type VascRoute struct {
     ProjectName  string
     AccessMethod string
     AccessRoute  string
-    FunctionName VascHandler
+    FunctionName gin.HandlerFunc
 }
 
 const (
@@ -21,8 +21,10 @@ const (
 	LOG_ERROR = 3
 )
 
+var projectName string
+
 func vascLogWrapper(level int, s string) error {
-	logger, err := syslog.New(syslog.LOG_DEBUG|syslog.LOG_LOCAL6, "mara-track-server/_all")
+	logger, err := syslog.New(syslog.LOG_DEBUG|syslog.LOG_LOCAL6, projectName)
 	if err != nil {
 		return errors.New("Could not open syslog for writing")
 	}
@@ -54,4 +56,8 @@ func VascLog(level int, format string, v ...interface{}) {
 
 func SetLogLevel(level int) {
 	logLevel = level
+}
+
+func SetProjectName(name string) {
+    projectName = name
 }
