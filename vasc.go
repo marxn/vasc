@@ -1,7 +1,7 @@
 package vasc
 
 import "fmt"
-import "syslog"
+import "log/syslog"
 import "errors"
 import "github.com/gin-gonic/gin"
 
