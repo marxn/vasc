@@ -5,13 +5,11 @@ import "log/syslog"
 import "errors"
 import "github.com/gin-gonic/gin"
 
-type VascHandler gin.HandlerFunc
-
 type VascRoute struct {
     ProjectName  string
     AccessMethod string
     AccessRoute  string
-    FunctionName gin.HandlerFunc
+    RouteHandler gin.HandlerFunc
 }
 
 const (
