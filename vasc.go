@@ -1,15 +1,22 @@
 package vasc
 
 import "fmt"
-import "log/syslog"
 import "errors"
+import "log/syslog"
 import "github.com/gin-gonic/gin"
 
 type VascRoute struct {
     ProjectName  string
+    Version      string
+    Host         string
     AccessMethod string
     AccessRoute  string
     RouteHandler gin.HandlerFunc
+}
+
+type VascServer struct {
+    serviceCore    *gin.Engine
+    moduleManager  *gin.Engine
 }
 
 const (
