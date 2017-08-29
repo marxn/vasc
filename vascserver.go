@@ -109,8 +109,6 @@ func NewServer(middleware func(c *gin.Context)) *VascServer {
 
 func (server *VascServer) AddModules(modules []VascRoute) {
     
-    module_list = modules
-    
     for i:=0; i < len(modules); i++ {
         switch modules[i].AccessMethod {
             case "GET"     : server.serviceCore.GET(modules[i].AccessRoute, modules[i].RouteHandler)
@@ -123,6 +121,8 @@ func (server *VascServer) AddModules(modules []VascRoute) {
                 fmt.Println("Unknown method: " + modules[i].AccessMethod)
                 continue
         }
+        
+        module_list = append(module_list, modules[i])
     }
 }
 
