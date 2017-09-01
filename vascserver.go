@@ -29,6 +29,8 @@ var serv_cert_path *string
 var serv_key_path  *string
 var listen_addr    *string
 var log_level      *string
+var mode           *string
+
 var module_list    []VascRoute
 
 func signalSetNew()(*signalSet){
@@ -87,7 +89,7 @@ func vascSignalBlockingHandle() {
 func listModules(c *gin.Context) {
     
     result := fmt.Sprintf("Project             Version             Host                Method    Route\n")
-    result += fmt.Sprintf("--------------------------------------------------------------------------------------------------------\n")
+    result += fmt.Sprintf("------------------- ------------------- ------------------- --------- ----------------------------------\n")
     
     for i:=0; i < len(module_list); i++ {
        result += fmt.Sprintf("%-20s%-20s%-20s%-10s%-20s\n", module_list[i].ProjectName, module_list[i].Version, module_list[i].Host, module_list[i].AccessMethod, module_list[i].AccessRoute)
@@ -116,6 +118,7 @@ func (server *VascServer) AddModules(modules []VascRoute) {
             case "OPTIONS" : server.serviceCore.OPTIONS(modules[i].AccessRoute, modules[i].RouteHandler)
             case "PUT"     : server.serviceCore.PUT(modules[i].AccessRoute, modules[i].RouteHandler)
             case "DELETE"  : server.serviceCore.DELETE(modules[i].AccessRoute, modules[i].RouteHandler)
+            case "FILE"    : server.serviceCore.StaticFS(modules[i].AccessRoute, http.Dir(modules[i].LocalFilePath))
             default:
                 VascLog(LOG_ERROR, "Unknown method: %s", modules[i].AccessMethod)
                 fmt.Println("Unknown method: " + modules[i].AccessMethod)
@@ -208,11 +211,10 @@ func (server *VascServer) Serve () {
 
 func UpdateMaintenanceTool() {
     args   := os.Args
-    script := fmt.Sprintf("sudo kill %d\n", os.Getpid())
-    script  = fmt.Sprintf("%ssleep 1\n", script)
+    script := fmt.Sprintf("kill %d\n", os.Getpid())
     script  = fmt.Sprintf("%smv %s.update %s\n", script, args[0], args[0])
     script  = fmt.Sprintf("%schmod u+x %s\n", script, args[0])
-    script  = fmt.Sprintf("%ssudo nohup %s -server_type http -listen %s&\n\n", script, args[0], *listen_addr)    
+    script  = fmt.Sprintf("%snohup %s -server_type http -listen %s&\n\n", script, args[0], *listen_addr)    
     ioutil.WriteFile("./vasc_update.sh", []byte(script), 0766)
 }
 
@@ -223,18 +225,23 @@ func InitServer(serverName string) {
     serv_cert_path = flag.String("certfile_path", "",               "server cert path(if https enabled)")
     serv_key_path  = flag.String("keyfile_path",  "",               "server cert path(if https enabled)")
     listen_addr    = flag.String("listen",        "localhost:8080", "listening address")
+    mode           = flag.String("mode",          "release",        "running mode(debug, release)")
     log_level      = flag.String("log_level",     "debug",          "log level(debug, info, warning, error)")
 
     flag.Parse()
     
     SetProjectName(serverName)
     
+    gin.DisableConsoleColor()
+    
     gin.SetMode(gin.ReleaseMode)
+    if *mode=="debug" {
+        gin.SetMode(gin.DebugMode)
+    }
     
     switch *log_level {
     case "debug":
         SetLogLevel(LOG_DEBUG)
-        gin.SetMode(gin.DebugMode)
     case "info":
         SetLogLevel(LOG_INFO)
     case "warning":

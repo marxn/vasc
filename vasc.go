@@ -6,12 +6,13 @@ import "log/syslog"
 import "github.com/gin-gonic/gin"
 
 type VascRoute struct {
-    ProjectName  string
-    Version      string
-    Host         string
-    AccessMethod string
-    AccessRoute  string
-    RouteHandler gin.HandlerFunc
+    ProjectName   string
+    Version       string
+    Host          string
+    AccessMethod  string
+    AccessRoute   string
+    RouteHandler  gin.HandlerFunc
+    LocalFilePath string
 }
 
 type VascServer struct {
