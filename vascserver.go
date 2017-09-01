@@ -6,14 +6,12 @@ import (
     "flag"
     "time"
     "syscall"
-    "crypto/tls"
     "io/ioutil"
     "net/http"
     "os/signal"
     "github.com/gin-gonic/gin"
 )
 
-const launchServiceWaitTimeNS = 5000000000
 const serviceLoopIntervalNS   = 1000000000
 
 type signalHandler func(s os.Signal, arg interface{})
@@ -23,14 +21,9 @@ type signalSet struct {
 }
 
 var runnable        bool
-var finished        bool
-var conn_type      *string
-var serv_cert_path *string
-var serv_key_path  *string
 var listen_addr    *string
 var log_level      *string
 var mode           *string
-
 var module_list    []VascRoute
 
 func signalSetNew()(*signalSet){
@@ -46,7 +39,7 @@ func (set *signalSet) register(s os.Signal, handler signalHandler) {
 }
 
 func vascServerSigHandler(s os.Signal, arg interface{}) {
-    fmt.Printf("SIGUSER signal received. Stopping server...\n")
+    fmt.Printf("SIGUSR signal received. Stopping server...\n")
     runnable = false
 }
     
@@ -88,22 +81,21 @@ func vascSignalBlockingHandle() {
 
 func listModules(c *gin.Context) {
     
-    result := fmt.Sprintf("Project             Version             Host                Method    Route\n")
-    result += fmt.Sprintf("------------------- ------------------- ------------------- --------- ----------------------------------\n")
+    result := fmt.Sprintf("Project             Version             Method    Route\n")
+    result += fmt.Sprintf("------------------- ------------------- --------- ----------------------------------\n")
     
     for i:=0; i < len(module_list); i++ {
-       result += fmt.Sprintf("%-20s%-20s%-20s%-10s%-20s\n", module_list[i].ProjectName, module_list[i].Version, module_list[i].Host, module_list[i].AccessMethod, module_list[i].AccessRoute)
+       result += fmt.Sprintf("%-20s%-20s%-10s%-20s\n", module_list[i].ProjectName, module_list[i].Version, module_list[i].Method, module_list[i].Route)
     }
     
     c.String(200, result)
 }
 
-func NewServer(middleware func(c *gin.Context)) *VascServer {
+func NewServer() *VascServer {
     
-    result := gin.Default()
-    result.Use(middleware)
-
+    result  := gin.Default()
     manager := gin.Default()        
+    
     manager.GET("checkmodules", listModules)
     
     return &VascServer{serviceCore:result, moduleManager:manager}
@@ -112,16 +104,18 @@ func NewServer(middleware func(c *gin.Context)) *VascServer {
 func (server *VascServer) AddModules(modules []VascRoute) {
     
     for i:=0; i < len(modules); i++ {
-        switch modules[i].AccessMethod {
-            case "GET"     : server.serviceCore.GET(modules[i].AccessRoute, modules[i].RouteHandler)
-            case "POST"    : server.serviceCore.POST(modules[i].AccessRoute, modules[i].RouteHandler)
-            case "OPTIONS" : server.serviceCore.OPTIONS(modules[i].AccessRoute, modules[i].RouteHandler)
-            case "PUT"     : server.serviceCore.PUT(modules[i].AccessRoute, modules[i].RouteHandler)
-            case "DELETE"  : server.serviceCore.DELETE(modules[i].AccessRoute, modules[i].RouteHandler)
-            case "FILE"    : server.serviceCore.StaticFS(modules[i].AccessRoute, http.Dir(modules[i].LocalFilePath))
+        switch modules[i].Method {
+            case "GET"     : server.serviceCore.GET(modules[i].Route,     modules[i].Middleware, modules[i].RouteHandler)
+            case "POST"    : server.serviceCore.POST(modules[i].Route,    modules[i].Middleware, modules[i].RouteHandler)
+            case "OPTIONS" : server.serviceCore.OPTIONS(modules[i].Route, modules[i].Middleware, modules[i].RouteHandler)
+            case "PUT"     : server.serviceCore.PUT(modules[i].Route,     modules[i].Middleware, modules[i].RouteHandler)
+            case "DELETE"  : server.serviceCore.DELETE(modules[i].Route,  modules[i].Middleware, modules[i].RouteHandler)
+            case "PATCH"   : server.serviceCore.PATCH(modules[i].Route,   modules[i].Middleware, modules[i].RouteHandler)
+	        case "HEAD"    : server.serviceCore.HEAD(modules[i].Route,    modules[i].Middleware, modules[i].RouteHandler)
+            case "FILE"    : server.serviceCore.StaticFS(modules[i].Route, http.Dir(modules[i].LocalFilePath))
             default:
-                VascLog(LOG_ERROR, "Unknown method: %s", modules[i].AccessMethod)
-                fmt.Println("Unknown method: " + modules[i].AccessMethod)
+                VascLog(LOG_ERROR, "Unknown method: %s", modules[i].Method)
+                fmt.Println("Unknown method: " + modules[i].Method)
                 continue
         }
         
@@ -129,84 +123,58 @@ func (server *VascServer) AddModules(modules []VascRoute) {
     }
 }
 
-func (server *VascServer) internalServer() {
-    
-    if *conn_type == "https" {
-        s := &http.Server{
-            Addr:    *listen_addr,
-            Handler: server.serviceCore,
-            TLSConfig: &tls.Config{
-                ClientAuth: tls.NoClientCert,
-            },
-        }
-
-        VascLog(LOG_INFO, "Service starting for [https]... ")
-        err := s.ListenAndServeTLS(*serv_cert_path, *serv_key_path)
-
-        if err != nil {
-            VascLog(LOG_ERROR, "vascserver service starting failed: %s", err.Error())
-            fmt.Println("ListenAndServeTLS failed: " + err.Error())
-        }
-    } else {
-        s := &http.Server{
-            Addr:    *listen_addr,
-            Handler: server.serviceCore,
-        }
-
-        VascLog(LOG_INFO, "Service starting for [http]... ")
-        err := s.ListenAndServe()
-        if err != nil {
-            VascLog(LOG_ERROR, "vascserver service starting failed: %s", err.Error())
-            fmt.Println("ListenAndServe failed: " + err.Error())
-        }
-    }
-    
-    runnable = false
-    finished = true
-}
-
-func (server *VascServer) vascModuleManager() {
-    
-    s := &http.Server{
-        Addr:    "127.0.0.1:30145",
-        Handler: server.moduleManager,
-    }
-
-    VascLog(LOG_INFO, "Starting module manager... ")
-    err := s.ListenAndServe()
-    
-    if err != nil {
-        VascLog(LOG_ERROR, "Module manager starting failed: %s", err.Error())
-        fmt.Println("Module manager failed: " + err.Error())
-    }
-}
-
 func (server *VascServer) Serve () {
     
-    //Enable the running flag
-    runnable = true
-    
+    //Launch module manager
+    go func () {
+        s := &http.Server{
+            Addr:    "127.0.0.1:30145",
+            Handler: server.moduleManager,
+        }
+
+        VascLog(LOG_INFO, "Starting module manager... ")
+        err := s.ListenAndServe()
+        
+        if err != nil {
+            VascLog(LOG_ERROR, "Module manager starting failed: %s", err.Error())
+            fmt.Println("Module manager failed: " + err.Error())
+            os.Exit(-1)
+        }
+    }()
+
     //Start signal dispatching
     go vascSignalBlockingHandle()
     
-    //Launch module manager thread
-    go server.vascModuleManager()
-    
     //Start services in background
-    go server.internalServer()
+    go func() {
+        httpServer := &http.Server{
+            Addr:    *listen_addr,
+            Handler: server.serviceCore,
+        }
+
+        VascLog(LOG_INFO, "Service starting... ")
+        err := httpServer.ListenAndServe()
+        if err != nil {
+            VascLog(LOG_ERROR, "vascserver service starting failed: %s", err.Error())
+            fmt.Println("ListenAndServe failed: " + err.Error())
+            os.Exit(-1)
+        }
+    }()
     
     //Ensure the service started correctly
-    time.Sleep(launchServiceWaitTimeNS)
+    time.Sleep(serviceLoopIntervalNS)
     
     //To write process id in order to stop the server gracefully
-    if runnable {
-        UpdateMaintenanceTool()
-    }
+    UpdateMaintenanceTool()
+    
+    runnable = true
     
     for ;runnable; {
+        //fmt.Println(runnable)
         time.Sleep(serviceLoopIntervalNS)
     }
     
+    fmt.Println("Service terminated.")
 }
 
 func UpdateMaintenanceTool() {
@@ -214,16 +182,13 @@ func UpdateMaintenanceTool() {
     script := fmt.Sprintf("kill %d\n", os.Getpid())
     script  = fmt.Sprintf("%smv %s.update %s\n", script, args[0], args[0])
     script  = fmt.Sprintf("%schmod u+x %s\n", script, args[0])
-    script  = fmt.Sprintf("%snohup %s -server_type http -listen %s&\n\n", script, args[0], *listen_addr)    
+    script  = fmt.Sprintf("%snohup %s -listen %s&\n\n", script, args[0], *listen_addr)    
     ioutil.WriteFile("./vasc_update.sh", []byte(script), 0766)
 }
 
 
 func InitServer(serverName string) {
-    
-    conn_type      = flag.String("server_type",   "http",           "server type(http/https)")
-    serv_cert_path = flag.String("certfile_path", "",               "server cert path(if https enabled)")
-    serv_key_path  = flag.String("keyfile_path",  "",               "server cert path(if https enabled)")
+
     listen_addr    = flag.String("listen",        "localhost:8080", "listening address")
     mode           = flag.String("mode",          "release",        "running mode(debug, release)")
     log_level      = flag.String("log_level",     "debug",          "log level(debug, info, warning, error)")

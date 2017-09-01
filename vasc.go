@@ -8,10 +8,10 @@ import "github.com/gin-gonic/gin"
 type VascRoute struct {
     ProjectName   string
     Version       string
-    Host          string
-    AccessMethod  string
-    AccessRoute   string
+    Method        string
+    Route         string
     RouteHandler  gin.HandlerFunc
+    Middleware    gin.HandlerFunc
     LocalFilePath string
 }
 
