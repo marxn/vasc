@@ -63,3 +63,4 @@ func MaryHandler(c *gin.Context) {
     c.JSON(200, gin.H {"code": 200, "message": "Hello Bob"})
 }
 ```
+以上代码创建了一个web服务器，它提供两个接口用于查询Mary和Bob的信息。
