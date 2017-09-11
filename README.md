@@ -74,7 +74,39 @@ func ExportModules() []vasc.VascRoute{
 
 ```
 
-# 如何使用vasc访问redis和mysql
+# 如何使用vasc访问redis
 vasc引入redigo开源库实现了redis的访问机制。由于它的功能较为完善，vasc并未对其进行进一步封装。
-对于mysql的访问，vasc直接使用github.com/go-sql-driver/mysql 作为数据库访问层。golang的database标准库具有原生支持连接池的特性，并且能够SQL注入攻击，因此vasc并未对其进行进一步封装。
+
+# 如何使用vasc访问数据库
+对于数据库的访问，vasc直接使用github.com/go-sql-driver/mysql 作为MySQL数据库访问驱动。golang的database标准库具有原生支持连接池的特性，并且能够SQL注入攻击。vasc的封装仅提供建立数据库连接的接口以及进行数据操作的数据结构。具体的业务数据库访问实现由开发者进行。当开发者利用vasc搭建服务时，建议将数据访问接口独立开发，例如在工程中编写如下风格的源代码：
+```
+package vasctest
+
+import (
+    "database/sql"
+    _ "github.com/go-sql-driver/mysql"
+    "github.com/marxn/vasc"
+)
+
+type VascDBConn struct {
+    DBHandle *sql.DB
+}
+
+func NewVascDBConn() (*VascDBConn, error) {
+    dbConn, err := vasc.SetupDBConnection(dbEngine, dbUser, dbPasswd, dbHost, dbPort, dbName, dbCharset)
+    if err!=nil {
+        return nil, err
+    }
+    
+    dbConn.SetMaxOpenConns(maxOpenConns)
+    dbConn.SetMaxIdleConns(maxIdleConns)
+
+    return &VascDBConn{DBHandle:dbConn}, nil
+}
+
+func (dbconn *MaraTrackSDKDBConn) testDB() {
+    dbconn.DBHandle.Ping()
+}
+
+```
 
