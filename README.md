@@ -24,3 +24,42 @@ func main() {
     server.Serve()
 }
 ```
+
+vasc包括一套用于搭建web服务的数据结构和一个用于对外提供web服务的服务器。承接上例，下面介绍如何使用vascserver搭建一个服务：
+```
+package vasctest
+
+import (
+    "github.com/gin-gonic/gin"
+)
+
+//编写导出模块
+func ExportModules() []vasc.VascRoute{
+    return []vasc.VascRoute{
+        vasc.VascRoute{ProjectName:"vasctest", Version:"1.0.100", Method:"GET",  Route:"/mary", Middleware: vasc.DefaultMiddleware, RouteHandler:  MaryHandler},
+        vasc.VascRoute{ProjectName:"vasctest", Version:"1.0.100", Method:"POST", Route:"/bob",  Middleware: vasc.DefaultMiddleware, RouteHandler:  Bobhandler},
+}
+
+//vascserver的route机制是基于gin的，因此handler函数的形式与gin保持一致。
+func MaryHandler(c *gin.Context) {
+    height, exist := c.GetQuery("height")
+    if !exist {
+        c.JSON(400, gin.H {"error" : gin.H {"code": 400, "message": "Empty height"}})
+        return
+    }
+    
+    //返回结果
+    c.JSON(200, gin.H {"code": 200, "message": "Hello Mary"})
+}
+
+func MaryHandler(c *gin.Context) {
+    weight, exist := c.GetQuery("weight")
+    if !exist {
+        c.JSON(400, gin.H {"error" : gin.H {"code": 400, "message": "Empty weight"}})
+        return
+    }
+    
+    //返回结果
+    c.JSON(200, gin.H {"code": 200, "message": "Hello Bob"})
+}
+```
