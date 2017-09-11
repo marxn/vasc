@@ -1,4 +1,4 @@
-# vasc
+## vasc
 vasc是一个基于Go语言（golang）的web服务框架。vasc包括一套用于搭建web服务的数据结构和一个用于对外提供web服务的服务器。
 ## 如何获取vasc：
 vasc的代码位于github.com/marxn/vasc
@@ -61,4 +61,14 @@ func main() {
     server.Serve()
 }
 ```
-以上代码创建了一个web服务器，它提供两个接口用于查询Mary和Bob的信息。
+以上代码创建了一个web服务器，它提供两个接口用于查询Mary和Bob的信息。除了gin框架提供的HTTP方法之外，vasc支持的HTTP方法还包括FILE方法。用于搭建一个静态资源服务器。例如，在导出模块表时，可以用一下方式建立一个基于本地文件系统的静态资源下载服务：
+```
+func ExportModules() []vasc.VascRoute{
+    return []vasc.VascRoute{
+        vasc.VascRoute{ProjectName:"vasctest", Version:"1.0.100", Method:"FILE", Route:"/b/record", Middleware: vasc.DefaultMiddleware, LocalFilePath: "/var/data/"}}
+}
+
+```
+
+
+
