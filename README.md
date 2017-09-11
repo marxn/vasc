@@ -10,7 +10,7 @@ go get github.com/marxn/vasc
 
 # 如何使用vascserver搭建web服务
 
-下面是一个使用vasc框架尖利的web服务器
+下面是一个使用vasc框架搭建的web服务器
 ```
 package main
 
