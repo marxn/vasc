@@ -4,7 +4,7 @@ vasc是一个基于Go语言（golang）的web服务框架。vasc包括一套用�
 vasc的代码位于github.com/marxn/vasc
 开发者在搭建完毕golang开发环境后，使用
 ```
-go get github.com/marxn/vasc 
+go get github.com/marxn/vasc
 ```
 获取到vasc的代码。在开发者的程序中导入"github.com/marxn/vasc" 就可以使用vasc库了。
 
@@ -44,7 +44,7 @@ func BobHandler(c *gin.Context) {
         c.JSON(400, gin.H {"error" : gin.H {"code": 400, "message": "Empty weight"}})
         return
     }
-    
+
     //返回结果
     c.JSON(200, gin.H {"code": 200, "message": "Hello Bob. your weight is " + weight})
 }
@@ -53,13 +53,13 @@ func main() {
 
     //初始化服务器框架，此调用解析命令行参数、生成运行日志、建立信号处理机制。
     vasc.InitServer()
-    
+
     //生成一个新的web服务实例。
     server := vasc.NewServer()
-    
+
     //这里可以添加web服务模块。
     server.AddModules(ExportModules())
-    
+
     //开始进行web服务。
     server.Serve()
 }
@@ -96,7 +96,7 @@ vasctest -listen locathost:80 -log_level warning -mode release
 vasc引入redigo开源库实现了redis的访问机制。由于它的功能较为完善，vasc并未对其进行进一步封装。
 
 # 如何使用vasc访问数据库
-对于数据库的访问，vasc直接使用github.com/go-sql-driver/mysql 作为MySQL数据库访问驱动。golang的database标准库具有原生支持连接池的特性，并且能够SQL注入攻击。vasc的封装仅提供建立数据库连接的接口以及进行数据操作的数据结构。具体的业务数据库访问实现由开发者进行。当开发者利用vasc搭建服务时，建议将数据访问接口独立开发，例如在工程中编写如下风格的源代码：
+对于数据库的访问，vasc直接使用github.com/go-sql-driver/mysql 作为MySQL数据库访问驱动。golang的database标准库具有原生支持连接池的特性，并且能够防范SQL注入攻击。vasc的封装仅提供建立数据库连接的接口并约定数据操作的流程。具体的业务数据库访问实现由开发者进行。当开发者利用vasc搭建服务时，建议将数据访问接口独立开发，例如在工程中编写如下风格的源代码：
 ```
 package vasctest
 
@@ -115,7 +115,7 @@ func NewVascDBConn() (*VascDBConn, error) {
     if err!=nil {
         return nil, err
     }
-    
+
     dbConn.SetMaxOpenConns(maxOpenConns)
     dbConn.SetMaxIdleConns(maxIdleConns)
 
