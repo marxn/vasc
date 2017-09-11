@@ -74,6 +74,24 @@ func ExportModules() []vasc.VascRoute{
 
 ```
 
+# 如何启动vascserver
+上述例子编译通过以后会产生一个名为vascserver的可执行文件。执行vasttest -h，出现以下提示：
+```
+Usage of ./vasctest:
+  -listen string
+        listening address (default "localhost:8080")
+  -log_level string
+        log level(debug, info, warning, error) (default "debug")
+  -mode string
+        running mode(debug, release) (default "release")
+```
+以上提示是vascserver封装的命令行参数信息。例如，可以用以下格式启动vasctest：
+```
+vasctest -listen locathost:80 -log_level warning -mode release
+```
+以上命令启动一个webserver，监听本地80端口。日志级别是warning。用release模式运行。
+
+
 # 如何使用vasc访问redis
 vasc引入redigo开源库实现了redis的访问机制。由于它的功能较为完善，vasc并未对其进行进一步封装。
 
