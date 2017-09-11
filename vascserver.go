@@ -10,6 +10,8 @@ import (
     "net/http"
     "os/signal"
     "github.com/gin-gonic/gin"
+    "database/sql"
+    _ "github.com/go-sql-driver/mysql"
 )
 
 const serviceLoopIntervalNS   = 1000000000
@@ -186,16 +188,13 @@ func UpdateMaintenanceTool() {
     ioutil.WriteFile("./vasc_update.sh", []byte(script), 0766)
 }
 
-
-func InitServer(serverName string) {
+func InitServer() {
 
     listen_addr    = flag.String("listen",        "localhost:8080", "listening address")
     mode           = flag.String("mode",          "release",        "running mode(debug, release)")
     log_level      = flag.String("log_level",     "debug",          "log level(debug, info, warning, error)")
 
     flag.Parse()
-    
-    SetProjectName(serverName)
     
     gin.DisableConsoleColor()
     
@@ -216,3 +215,6 @@ func InitServer(serverName string) {
     }
 }
 
+func SetupDBConnection(dbEngine, dbUser, dbPassword, dbHost, dbPort, dbName, dbCharset string) (*sql.DB, error) {
+    return sql.Open(dbEngine, fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=%s", dbUser, dbPassword, dbHost, dbPort, dbName, dbCharset))
+}

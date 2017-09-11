@@ -1,9 +1,11 @@
 package vasc
 
-import "fmt"
-import "errors"
-import "log/syslog"
-import "github.com/gin-gonic/gin"
+import (
+    "fmt"
+    "errors"
+    "log/syslog"
+    "github.com/gin-gonic/gin"
+)
 
 type VascRoute struct {
     ProjectName   string
@@ -28,7 +30,8 @@ const (
 )
 
 var projectName string
-
+var logLevel int = LOG_DEBUG 
+ 
 func vascLogWrapper(level int, s string) error {
 	logger, err := syslog.New(syslog.LOG_DEBUG|syslog.LOG_LOCAL6, projectName)
 	if err != nil {
@@ -52,8 +55,6 @@ func vascLogWrapper(level int, s string) error {
 	return nil
 }
 
-var logLevel int = LOG_DEBUG
-
 func VascLog(level int, format string, v ...interface{}) {
 	if level >= logLevel {
 		vascLogWrapper(level, fmt.Sprintf(format, v...))
@@ -64,6 +65,6 @@ func SetLogLevel(level int) {
 	logLevel = level
 }
 
-func SetProjectName(name string) {
-    projectName = name
+func DefaultMiddleware(c *gin.Context) {
+    //Do nothing at all.
 }
