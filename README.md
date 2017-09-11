@@ -1,5 +1,8 @@
 # vasc
-vasc是一个基于Go语言（golang）的web服务框架。vasc包括一套用于搭建web服务的数据结构和一个用于对外提供web服务的服务器。承接上例，下面介绍如何使用vascserver搭建一个服务：
+vasc是一个基于Go语言（golang）的web服务框架。vasc包括一套用于搭建web服务的数据结构和一个用于对外提供web服务的服务器。
+## 如何获取vasc：
+vasc的代码位于github.com/marxn/vasc
+开发者在搭建完毕golang开发环境后，使用go get github.com/marxn/vasc 命令获取vasc的代码。在开发者的程序中导入"github.com/marxn/vasc" 就可以使用vasc库了。下面介绍如何使用vascserver搭建一个web服务：
 
 ```
 package main
