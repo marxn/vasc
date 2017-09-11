@@ -1,13 +1,16 @@
-## vasc
+# vasc是什么
 vasc是一个基于Go语言（golang）的web服务框架。vasc包括一套用于搭建web服务的数据结构和一个用于对外提供web服务的服务器。
-## 如何获取vasc：
+# 如何获取vasc：
 vasc的代码位于github.com/marxn/vasc
 开发者在搭建完毕golang开发环境后，使用
 ```
 go get github.com/marxn/vasc 
 ```
-获取到vasc的代码。在开发者的程序中导入"github.com/marxn/vasc" 就可以使用vasc库了。下面介绍如何使用vascserver搭建一个web服务：
+获取到vasc的代码。在开发者的程序中导入"github.com/marxn/vasc" 就可以使用vasc库了。
 
+#如何使用vascserver搭建web服务
+
+下面是一个使用vasc框架尖利的web服务器
 ```
 package main
 
@@ -71,5 +74,7 @@ func ExportModules() []vasc.VascRoute{
 
 ```
 
-
+#如何使用vasc访问redis和mysql
+vasc引入redigo开源库实现了redis的访问机制。由于它的功能较为完善，vasc并未对其进行进一步封装。
+对于mysql的访问，vasc直接使用github.com/go-sql-driver/mysql 作为数据库访问层。golang的database标准库具有原生支持连接池的特性，并且能够SQL注入攻击，因此vasc并未对其进行进一步封装。
 
