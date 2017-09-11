@@ -109,4 +109,13 @@ func (dbconn *MaraTrackSDKDBConn) testDB() {
 }
 
 ```
-
+# 如何使用vasc记录日志
+vasc提供以下接口用于记录日志：
+```
+func VascLog(level int, format string, v ...interface{})
+```
+例如：
+```
+VascLog(LOG_ERROR, "Module manager starting failed: %s", err.Error())
+```
+vasc支持4个日志级别，分别是debug、info、warning、error。vasc的日志是对syslog的封装，日志文件通过syslog服务写入文件系统。
