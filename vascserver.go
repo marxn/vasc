@@ -44,7 +44,11 @@ func vascServerSigHandler(s os.Signal, arg interface{}) {
     fmt.Printf("SIGUSR signal received. Stopping server...\n")
     runnable = false
 }
-    
+
+func vascServerSigIgnoreHandler(s os.Signal, arg interface{}) {
+    fmt.Printf("SIGHUP signal received. Ignore.\n")
+}
+
 func (set *signalSet) handle(sig os.Signal, arg interface{}) (err error) {
     if _, found := set.m[sig]; found {
         set.m[sig](sig, arg)
@@ -61,6 +65,7 @@ func vascSignalBlockingHandle() {
 
     ss.register(syscall.SIGUSR1, vascServerSigHandler)
     ss.register(syscall.SIGUSR2, vascServerSigHandler)
+    ss.register(syscall.SIGHUP,  vascServerSigIgnoreHandler)
 
     for {
         c := make(chan os.Signal)
