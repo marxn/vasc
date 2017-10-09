@@ -29,9 +29,9 @@ const (
 	LOG_ERROR = 3
 )
 
-var projectName string
-var logLevel int = LOG_DEBUG 
- 
+var projectName string = "VASCSERVER"
+var logLevel    int    = LOG_DEBUG 
+
 func vascLogWrapper(level int, s string) error {
 	logger, err := syslog.New(syslog.LOG_DEBUG|syslog.LOG_LOCAL6, projectName)
 	if err != nil {
@@ -66,5 +66,4 @@ func SetLogLevel(level int) {
 }
 
 func DefaultMiddleware(c *gin.Context) {
-    //Do nothing at all.
 }

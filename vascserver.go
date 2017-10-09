@@ -2,6 +2,7 @@ package vasc
 
 import (
     "os"
+    //"io"
     "fmt"
     "flag"
     "time"
@@ -9,6 +10,7 @@ import (
     "io/ioutil"
     "net/http"
     "os/signal"
+    "os/exec"
     "github.com/gin-gonic/gin"
     "database/sql"
     _ "github.com/go-sql-driver/mysql"
@@ -26,6 +28,7 @@ var runnable        bool
 var listen_addr    *string
 var log_level      *string
 var mode           *string
+var log_path       *string
 var module_list    []VascRoute
 
 func signalSetNew()(*signalSet){
@@ -130,6 +133,75 @@ func (server *VascServer) AddModules(modules []VascRoute) {
     }
 }
 
+var logFileHandle  *os.File
+var lastSecondDate  string
+var vascLogWriter  *vascServerLogWriter
+
+type vascServerLogItem struct {
+    timestamp string
+    logitem   string
+}
+
+type vascServerLogWriter struct {
+    logBuffer chan vascServerLogItem
+}
+
+func vascGetNewLogWriter() *vascServerLogWriter {
+    result := &vascServerLogWriter {
+        logBuffer : make(chan vascServerLogItem)}
+    
+    return result
+}
+
+func (w *vascServerLogWriter) Write(p []byte) (n int, err error) {
+    w.logBuffer <- vascServerLogItem {timestamp:time.Now().Format("2006-01-02"), logitem:string(p)}
+    return len(p), nil
+}
+
+func qualifyPath(path string) string{
+    ret := ""
+    
+    if len(path)==0 {
+        ret = "./";
+    } else if(path[len(path) - 1]!='/') {
+        ret = path + "/";
+    } else {
+        ret = path;
+    }
+    
+    return ret;
+
+}
+
+func exec_shell(s string) {
+    cmd := exec.Command("/bin/bash", "-c", s)
+    cmd.Run()
+}
+
+func vascServerLogFileUpdate(serverLogFile string) {
+    logFileHandle, _  = os.OpenFile(qualifyPath(*log_path) + serverLogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+    lastSecondDate    = time.Now().Format("2006-01-02")
+}
+
+func vascServerLogRotating(w * vascServerLogWriter) {
+    vascServerLogFileUpdate("vascserver-" + time.Now().Format("2006-01-02") + ".log")
+    for ;runnable; {
+        logItem := <- w.logBuffer
+        if logItem.timestamp != lastSecondDate {
+            logFileHandle.Close()
+            
+            //Compress rotated log file
+            cmd := "gzip " + qualifyPath(*log_path) + "vascserver-" + lastSecondDate + ".log"
+            go exec_shell(cmd)
+            
+            //Generate a new log file
+            vascServerLogFileUpdate("vascserver-" + time.Now().Format("2006-01-02") + ".log")
+        }
+        
+        logFileHandle.WriteString(logItem.logitem)
+    }
+}
+
 func (server *VascServer) Serve () {
     
     //Launch module manager
@@ -176,8 +248,10 @@ func (server *VascServer) Serve () {
     
     runnable = true
     
+    //Log file writing & rotating
+    go vascServerLogRotating(vascLogWriter)
+    
     for ;runnable; {
-        //fmt.Println(runnable)
         time.Sleep(serviceLoopIntervalNS)
     }
     
@@ -189,35 +263,43 @@ func UpdateMaintenanceTool() {
     script := fmt.Sprintf("kill %d\n", os.Getpid())
     script  = fmt.Sprintf("%smv %s.update %s\n", script, args[0], args[0])
     script  = fmt.Sprintf("%schmod u+x %s\n", script, args[0])
-    script  = fmt.Sprintf("%snohup %s -listen %s&\n\n", script, args[0], *listen_addr)    
     ioutil.WriteFile("./vasc_update.sh", []byte(script), 0766)
 }
 
-func InitServer() {
+func InitServer() error {
 
     listen_addr    = flag.String("listen",        "localhost:8080", "listening address")
     mode           = flag.String("mode",          "release",        "running mode(debug, release)")
+    log_path       = flag.String("log_path",      "./",             "vascserver log file path")
     log_level      = flag.String("log_level",     "debug",          "log level(debug, info, warning, error)")
-
     flag.Parse()
-    
+        
     gin.DisableConsoleColor()
-    
     gin.SetMode(gin.ReleaseMode)
+    
+    vascLogWriter = vascGetNewLogWriter()
+    gin.DefaultWriter = vascLogWriter
+    
     if *mode=="debug" {
         gin.SetMode(gin.DebugMode)
     }
     
+    log_level_num := LOG_DEBUG
+    
     switch *log_level {
     case "debug":
-        SetLogLevel(LOG_DEBUG)
+        log_level_num = LOG_DEBUG
     case "info":
-        SetLogLevel(LOG_INFO)
+        log_level_num = LOG_INFO
     case "warning":
-        SetLogLevel(LOG_WARN)
+        log_level_num = LOG_WARN
     case "error":
-        SetLogLevel(LOG_ERROR)
+        log_level_num = LOG_ERROR
     }
+    
+    SetLogLevel(log_level_num)
+    
+    return nil
 }
 
 func SetupDBConnection(dbEngine, dbUser, dbPassword, dbHost, dbPort, dbName, dbCharset string) (*sql.DB, error) {
