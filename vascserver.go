@@ -2,14 +2,13 @@ package vasc
 
 import (
     "os"
-    //"io"
     "fmt"
     "flag"
     "time"
     "syscall"
-    "io/ioutil"
     "net/http"
     "os/signal"
+    "io/ioutil"
     "os/exec"
     "github.com/gin-gonic/gin"
     "database/sql"
@@ -25,6 +24,7 @@ type signalSet struct {
 }
 
 var runnable        bool
+var profile        *string
 var listen_addr    *string
 var log_level      *string
 var mode           *string
@@ -43,13 +43,17 @@ func (set *signalSet) register(s os.Signal, handler signalHandler) {
     }
 }
 
-func vascServerSigHandler(s os.Signal, arg interface{}) {
-    fmt.Printf("SIGUSR signal received. Stopping server...\n")
+func vascServerStopHandler(s os.Signal, arg interface{}) {
+    fmt.Printf("Stop signal received. Stopping server...\n")
     runnable = false
 }
 
+func vascServerReloadHandler(s os.Signal, arg interface{}) {
+    fmt.Printf("Reload signal received. Ignore.\n")
+}
+
 func vascServerSigIgnoreHandler(s os.Signal, arg interface{}) {
-    fmt.Printf("SIGHUP signal received. Ignore.\n")
+    fmt.Printf("Exceptional signal received. Ignore.\n")
 }
 
 func (set *signalSet) handle(sig os.Signal, arg interface{}) (err error) {
@@ -66,9 +70,10 @@ func (set *signalSet) handle(sig os.Signal, arg interface{}) (err error) {
 func vascSignalBlockingHandle() {
     ss := signalSetNew()
 
-    ss.register(syscall.SIGUSR1, vascServerSigHandler)
-    ss.register(syscall.SIGUSR2, vascServerSigHandler)
+    ss.register(syscall.SIGUSR1, vascServerStopHandler)
+    ss.register(syscall.SIGUSR2, vascServerReloadHandler)
     ss.register(syscall.SIGHUP,  vascServerSigIgnoreHandler)
+    ss.register(syscall.SIGCHLD, vascServerSigIgnoreHandler)
 
     for {
         c := make(chan os.Signal)
@@ -91,40 +96,33 @@ func vascSignalBlockingHandle() {
 
 func listModules(c *gin.Context) {
     
-    result := fmt.Sprintf("Project             Version             Method    Route\n")
-    result += fmt.Sprintf("------------------- ------------------- --------- ----------------------------------\n")
+    result := fmt.Sprintf("Version             Method    Route\n")
+    result += fmt.Sprintf("------------------- --------- ----------------------------------\n")
     
     for i:=0; i < len(module_list); i++ {
-       result += fmt.Sprintf("%-20s%-20s%-10s%-20s\n", module_list[i].ProjectName, module_list[i].Version, module_list[i].Method, module_list[i].Route)
+       result += fmt.Sprintf("%-10s%-20s\n", module_list[i].Method, module_list[i].Route)
     }
     
     c.String(200, result)
 }
 
-func NewServer() *VascServer {
-    
-    result  := gin.Default()
-    manager := gin.Default()        
-    
-    manager.GET("checkmodules", listModules)
-    
-    return &VascServer{serviceCore:result, moduleManager:manager}
-}
+var serviceCore   *gin.Engine
+var moduleManager *gin.Engine
 
-func (server *VascServer) AddModules(modules []VascRoute) {
+func AddModules(modules []VascRoute) {
     
     for i:=0; i < len(modules); i++ {
         switch modules[i].Method {
-            case "GET"     : server.serviceCore.GET(modules[i].Route,     modules[i].Middleware, modules[i].RouteHandler)
-            case "POST"    : server.serviceCore.POST(modules[i].Route,    modules[i].Middleware, modules[i].RouteHandler)
-            case "OPTIONS" : server.serviceCore.OPTIONS(modules[i].Route, modules[i].Middleware, modules[i].RouteHandler)
-            case "PUT"     : server.serviceCore.PUT(modules[i].Route,     modules[i].Middleware, modules[i].RouteHandler)
-            case "DELETE"  : server.serviceCore.DELETE(modules[i].Route,  modules[i].Middleware, modules[i].RouteHandler)
-            case "PATCH"   : server.serviceCore.PATCH(modules[i].Route,   modules[i].Middleware, modules[i].RouteHandler)
-	        case "HEAD"    : server.serviceCore.HEAD(modules[i].Route,    modules[i].Middleware, modules[i].RouteHandler)
-            case "FILE"    : server.serviceCore.StaticFS(modules[i].Route, http.Dir(modules[i].LocalFilePath))
+            case "GET"     : serviceCore.GET(modules[i].Route,     modules[i].Middleware, modules[i].RouteHandler)
+            case "POST"    : serviceCore.POST(modules[i].Route,    modules[i].Middleware, modules[i].RouteHandler)
+            case "OPTIONS" : serviceCore.OPTIONS(modules[i].Route, modules[i].Middleware, modules[i].RouteHandler)
+            case "PUT"     : serviceCore.PUT(modules[i].Route,     modules[i].Middleware, modules[i].RouteHandler)
+            case "DELETE"  : serviceCore.DELETE(modules[i].Route,  modules[i].Middleware, modules[i].RouteHandler)
+            case "PATCH"   : serviceCore.PATCH(modules[i].Route,   modules[i].Middleware, modules[i].RouteHandler)
+	        case "HEAD"    : serviceCore.HEAD(modules[i].Route,    modules[i].Middleware, modules[i].RouteHandler)
+            case "FILE"    : serviceCore.StaticFS(modules[i].Route, http.Dir(modules[i].LocalFilePath))
             default:
-                VascLog(LOG_ERROR, "Unknown method: %s", modules[i].Method)
+                ErrorLog("Unknown method: %s", modules[i].Method)
                 fmt.Println("Unknown method: " + modules[i].Method)
                 continue
         }
@@ -184,6 +182,7 @@ func vascServerLogFileUpdate(serverLogFile string) {
 }
 
 func vascServerLogRotating(w * vascServerLogWriter) {
+    exec_shell("mkdir " + qualifyPath(*log_path))
     vascServerLogFileUpdate("vascserver-" + time.Now().Format("2006-01-02") + ".log")
     for ;runnable; {
         logItem := <- w.logBuffer
@@ -202,20 +201,23 @@ func vascServerLogRotating(w * vascServerLogWriter) {
     }
 }
 
-func (server *VascServer) Serve () {
+func Serve () {
+    
+    //Install module manager for listing
+    moduleManager.GET("checkmodules", listModules)
     
     //Launch module manager
     go func () {
         s := &http.Server{
             Addr:    "127.0.0.1:30145",
-            Handler: server.moduleManager,
+            Handler: moduleManager,
         }
 
-        VascLog(LOG_INFO, "Starting module manager... ")
+        InfoLog("Starting module manager... ")
         err := s.ListenAndServe()
         
         if err != nil {
-            VascLog(LOG_ERROR, "Module manager starting failed: %s", err.Error())
+            ErrorLog("Module manager starting failed: %s", err.Error())
             fmt.Println("Module manager failed: " + err.Error())
             os.Exit(-1)
         }
@@ -224,17 +226,17 @@ func (server *VascServer) Serve () {
     //Start signal dispatching
     go vascSignalBlockingHandle()
     
-    //Start services in background
+    //Start web services in background
     go func() {
         httpServer := &http.Server{
             Addr:    *listen_addr,
-            Handler: server.serviceCore,
+            Handler: serviceCore,
         }
 
-        VascLog(LOG_INFO, "Service starting... ")
+        InfoLog("Service starting... ")
         err := httpServer.ListenAndServe()
         if err != nil {
-            VascLog(LOG_ERROR, "vascserver service starting failed: %s", err.Error())
+            ErrorLog("vascserver service starting failed: %s", err.Error())
             fmt.Println("ListenAndServe failed: " + err.Error())
             os.Exit(-1)
         }
@@ -243,12 +245,9 @@ func (server *VascServer) Serve () {
     //Ensure the service started correctly
     time.Sleep(serviceLoopIntervalNS)
     
-    //To write process id in order to stop the server gracefully
-    UpdateMaintenanceTool()
-    
     runnable = true
     
-    //Log file writing & rotating
+    //Log file redirecting & rotating
     go vascServerLogRotating(vascLogWriter)
     
     for ;runnable; {
@@ -258,20 +257,14 @@ func (server *VascServer) Serve () {
     fmt.Println("Service terminated.")
 }
 
-func UpdateMaintenanceTool() {
-    args   := os.Args
-    script := fmt.Sprintf("kill %d\n", os.Getpid())
-    script  = fmt.Sprintf("%smv %s.update %s\n", script, args[0], args[0])
-    script  = fmt.Sprintf("%schmod u+x %s\n", script, args[0])
-    ioutil.WriteFile("./vasc_update.sh", []byte(script), 0766)
-}
-
 func InitServer() error {
 
-    listen_addr    = flag.String("listen",        "localhost:8080", "listening address")
-    mode           = flag.String("mode",          "release",        "running mode(debug, release)")
-    log_path       = flag.String("log_path",      "./",             "vascserver log file path")
-    log_level      = flag.String("log_level",     "debug",          "log level(debug, info, warning, error)")
+    listen_addr  = flag.String("listen",      "localhost:8080",                "listening address")
+    profile      = flag.String("profile",     "dev",                           "profile for running environment(dev, test, online, ...)")
+    mode         = flag.String("mode",        "release",                       "running mode(debug, release)")
+    log_path     = flag.String("log_path",    "./",                            "vascserver log file path")
+    log_level    = flag.String("log_level",   "debug",                         "log level(debug, info, warning, error)")
+    
     flag.Parse()
         
     gin.DisableConsoleColor()
@@ -299,7 +292,24 @@ func InitServer() error {
     
     SetLogLevel(log_level_num)
     
+    serviceCore   = gin.Default()
+    moduleManager = gin.Default()
+    
     return nil
+}
+
+func GetProfile() string {
+    return *profile
+}
+
+func GetMode() string {
+    return *mode
+}
+
+func GeneratePidFile() {
+    exec_shell("mkdir -p var/run")
+    pid := fmt.Sprintf("%d", os.Getpid())
+    ioutil.WriteFile("./var/run/vascserver.pid", []byte(pid), 0666)
 }
 
 func SetupDBConnection(dbEngine, dbUser, dbPassword, dbHost, dbPort, dbName, dbCharset string) (*sql.DB, error) {

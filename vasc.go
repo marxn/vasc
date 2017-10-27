@@ -8,18 +8,11 @@ import (
 )
 
 type VascRoute struct {
-    ProjectName   string
-    Version       string
     Method        string
     Route         string
     RouteHandler  gin.HandlerFunc
     Middleware    gin.HandlerFunc
     LocalFilePath string
-}
-
-type VascServer struct {
-    serviceCore    *gin.Engine
-    moduleManager  *gin.Engine
 }
 
 const (
@@ -55,14 +48,36 @@ func vascLogWrapper(level int, s string) error {
 	return nil
 }
 
-func VascLog(level int, format string, v ...interface{}) {
-	if level >= logLevel {
-		vascLogWrapper(level, fmt.Sprintf(format, v...))
+func ErrorLog(format string, v ...interface{}) {
+	if LOG_ERROR >= logLevel {
+		vascLogWrapper(LOG_ERROR, fmt.Sprintf(format, v...))
+	}
+}
+
+func InfoLog(format string, v ...interface{}) {
+	if LOG_WARN >= logLevel {
+		vascLogWrapper(LOG_ERROR, fmt.Sprintf(format, v...))
+	}
+}
+
+func WarnLog(format string, v ...interface{}) {
+	if LOG_INFO >= logLevel {
+		vascLogWrapper(LOG_ERROR, fmt.Sprintf(format, v...))
+	}
+}
+
+func DebugLog(format string, v ...interface{}) {
+	if LOG_DEBUG >= logLevel {
+		vascLogWrapper(LOG_ERROR, fmt.Sprintf(format, v...))
 	}
 }
 
 func SetLogLevel(level int) {
 	logLevel = level
+}
+
+func SetProjectName(name string) {
+    projectName = name
 }
 
 func DefaultMiddleware(c *gin.Context) {
