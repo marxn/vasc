@@ -50,18 +50,24 @@ func BobHandler(c *gin.Context) {
 }
 
 func main() {
-
+    //设置工程名
+    vasc.SetProjectName("mtr-gw")
+    
     //初始化服务器框架，此调用解析命令行参数、生成运行日志、建立信号处理机制。
     vasc.InitServer()
+    
+    //获取配置文件
+    profile := vasc.GetProfile()
 
-    //生成一个新的web服务实例。
-    server := vasc.NewServer()
-
+    //建立pid文件
+    vasc.GeneratePidFile() 
+    
     //这里可以添加web服务模块。
-    server.AddModules(ExportModules())
-
-    //开始进行web服务。
-    server.Serve()
+    vasc.AddModules(ExportModules(profile))
+    
+    //开始服务.
+    vasc.Serve()
+    
 }
 ```
 
@@ -69,7 +75,7 @@ func main() {
 ```
 func ExportModules() []vasc.VascRoute{
     return []vasc.VascRoute{
-        vasc.VascRoute{ProjectName:"vasctest", Version:"1.0.100", Method:"FILE", Route:"/b/record", Middleware: vasc.DefaultMiddleware, LocalFilePath: "/var/data/download/"}}
+        vasc.VascRoute{Method:"FILE", Route:"/b/record", Middleware: vasc.DefaultMiddleware, LocalFilePath: "/var/data/download/"}}
 }
 
 ```
@@ -77,19 +83,23 @@ func ExportModules() []vasc.VascRoute{
 # 如何启动vascserver
 上述例子编译通过以后会产生一个名为vascserver的可执行文件。执行vasttest -h，出现以下提示：
 ```
-Usage of ./vasctest:
+Usage of ./maragoserver:
   -listen string
         listening address (default "localhost:8080")
   -log_level string
         log level(debug, info, warning, error) (default "debug")
+  -log_path string
+        vascserver log file path (default "./")
   -mode string
         running mode(debug, release) (default "release")
+  -profile string
+        profile for running environment(dev, test, online, ...) (default "dev")
 ```
 以上提示是vascserver封装的命令行参数信息。例如，可以用以下格式启动vasctest：
 ```
-vasctest -listen locathost:80 -log_level warning -mode release
+vasctest -profile dev -listen locathost:80 -log_level warning -mode release
 ```
-以上命令启动一个webserver，监听本地80端口。日志级别是warning。用release模式运行。
+以上命令启动一个vascserver，监听本地80端口。日志级别是warning。用release模式运行。运行参数（数据库、redis等连接信息）从配置存储系统的dev项中获取
 
 
 # 如何使用vasc访问redis
@@ -130,10 +140,14 @@ func (dbconn *MaraTrackSDKDBConn) testDB() {
 # 如何使用vasc记录日志
 vasc提供以下接口用于记录日志：
 ```
-func VascLog(level int, format string, v ...interface{})
+func ErrorLog(format string, v ...interface{})
+func InfoLog(format string, v ...interface{})
+func WarnLog(format string, v ...interface{})
+func DebugLog(format string, v ...interface{})
 ```
+以上四个分别是debug、info、warning、error级别的日志对应的接口调用。vasc的日志是对syslog的封装，通过syslog服务写入文件系统。
 例如：
 ```
-VascLog(LOG_ERROR, "Module manager starting failed: %s", err.Error())
+ErrorLog("Module manager starting failed: %s", err.Error())
 ```
-vasc支持4个日志级别，分别是debug、info、warning、error。vasc的日志是对syslog的封装，日志文件通过syslog服务写入文件系统。
+
