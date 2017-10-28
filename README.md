@@ -101,10 +101,6 @@ vasctest -profile dev -listen locathost:80 -log_level warning -mode release
 ```
 以上命令启动一个vascserver，监听本地80端口。日志级别是warning。用release模式运行。运行参数（数据库、redis等连接信息）从配置存储系统的dev项中获取
 
-
-# 如何使用vasc访问redis
-vasc引入redigo开源库实现了redis的访问机制。由于它的功能较为完善，vasc并未对其进行进一步封装。
-
 # 如何使用vasc访问数据库
 对于数据库的访问，vasc直接使用github.com/go-sql-driver/mysql 作为MySQL数据库访问驱动。golang的database标准库具有原生支持连接池的特性，并且能够防范SQL注入攻击。vasc的封装仅提供建立数据库连接的接口并约定数据操作的流程。具体的业务数据库访问实现由开发者进行。当开发者利用vasc搭建服务时，建议将数据访问接口独立开发，例如在工程中编写如下风格的源代码：
 ```
