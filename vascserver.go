@@ -226,6 +226,9 @@ func Serve () {
     //Start signal dispatching
     go vascSignalBlockingHandle()
     
+    //Create pid file after signal handler installed
+    GeneratePidFile()
+    
     //Start web services in background
     go func() {
         httpServer := &http.Server{
@@ -257,8 +260,10 @@ func Serve () {
     fmt.Println("Service terminated.")
 }
 
-func InitServer() error {
+func InitServer(project_name string) error {
 
+    SetProjectName(project_name)
+    
     listen_addr  = flag.String("listen",      "localhost:8080",                "listening address")
     profile      = flag.String("profile",     "dev",                           "profile for running environment(dev, test, online, ...)")
     mode         = flag.String("mode",        "release",                       "running mode(debug, release)")
