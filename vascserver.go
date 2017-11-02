@@ -26,6 +26,7 @@ type signalSet struct {
 var runnable        bool
 var profile        *string
 var listen_addr    *string
+var watch_addr     *string
 var log_level      *string
 var mode           *string
 var log_path       *string
@@ -207,22 +208,23 @@ func Serve () {
     moduleManager.GET("checkmodules", listModules)
     
     //Launch module manager
-    go func () {
-        s := &http.Server{
-            Addr:    "127.0.0.1:30145",
-            Handler: moduleManager,
-        }
+    if(*watch_addr!="") {
+        go func () {
+            s := &http.Server{
+                Addr:    *watch_addr,
+                Handler: moduleManager,
+            }
 
-        InfoLog("Starting module manager... ")
-        err := s.ListenAndServe()
-        
-        if err != nil {
-            ErrorLog("Module manager starting failed: %s", err.Error())
-            fmt.Println("Module manager failed: " + err.Error())
-            os.Exit(-1)
-        }
-    }()
-
+            InfoLog("Starting module manager... ")
+            err := s.ListenAndServe()
+            
+            if err != nil {
+                ErrorLog("Module manager starting failed: %s", err.Error())
+                fmt.Println("Module manager failed: " + err.Error())
+                os.Exit(-1)
+            }
+        }()
+    }
     //Start signal dispatching
     go vascSignalBlockingHandle()
     
@@ -264,11 +266,12 @@ func InitServer(project_name string) error {
 
     SetProjectName(project_name)
     
-    listen_addr  = flag.String("listen",      "localhost:8080",                "listening address")
-    profile      = flag.String("profile",     "dev",                           "profile for running environment(dev, test, online, ...)")
-    mode         = flag.String("mode",        "release",                       "running mode(debug, release)")
-    log_path     = flag.String("log_path",    "./",                            "vascserver log file path")
-    log_level    = flag.String("log_level",   "debug",                         "log level(debug, info, warning, error)")
+    listen_addr  = flag.String("listen",      "localhost:8080", "listening address")
+    watch_addr   = flag.String("watch_addr",  "",               "watch address")
+    profile      = flag.String("profile",     "dev",            "profile for running environment(dev, test, online, ...)")
+    mode         = flag.String("mode",        "release",        "running mode(debug, release)")
+    log_path     = flag.String("log_path",    "./",             "vascserver log file path")
+    log_level    = flag.String("log_level",   "debug",          "log level(debug, info, warning, error)")
     
     flag.Parse()
         
