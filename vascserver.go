@@ -25,6 +25,7 @@ type signalSet struct {
 
 var runnable        bool
 var profile        *string
+var pidfile        *string
 var listen_addr    *string
 var watch_addr     *string
 var log_level      *string
@@ -228,9 +229,6 @@ func Serve () {
     //Start signal dispatching
     go vascSignalBlockingHandle()
     
-    //Create pid file after signal handler installed
-    GeneratePidFile()
-    
     //Start web services in background
     go func() {
         httpServer := &http.Server{
@@ -263,18 +261,20 @@ func Serve () {
 }
 
 func InitServer(project_name string) error {
-
+    
     SetProjectName(project_name)
     
-    listen_addr  = flag.String("listen",      "localhost:8080", "listening address")
-    watch_addr   = flag.String("watch_addr",  "",               "watch address")
-    profile      = flag.String("profile",     "dev",            "profile for running environment(dev, test, online, ...)")
-    mode         = flag.String("mode",        "release",        "running mode(debug, release)")
-    log_path     = flag.String("log_path",    "./",             "vascserver log file path")
-    log_level    = flag.String("log_level",   "debug",          "log level(debug, info, warning, error)")
+    listen_addr  = flag.String("listen",      "localhost:8080",          "listening address")
+    watch_addr   = flag.String("watch_addr",  "",                        "watch address")
+    profile      = flag.String("profile",     "dev",                     "profile for running environment(dev, test, online, ...)")
+    pidfile      = flag.String("pidfile",     "/var/run/vascserver.pid", "pid filename")
+    mode         = flag.String("mode",        "release",                 "running mode(debug, release)")
+    log_path     = flag.String("log_path",    "./",                      "vascserver log file path")
+    log_level    = flag.String("log_level",   "debug",                   "log level(debug, info, warning, error)")
     
     flag.Parse()
         
+    GeneratePidFile()
     gin.DisableConsoleColor()
     gin.SetMode(gin.ReleaseMode)
     
@@ -315,9 +315,12 @@ func GetMode() string {
 }
 
 func GeneratePidFile() {
-    exec_shell("mkdir -p var/run")
-    pid := fmt.Sprintf("%d", os.Getpid())
-    ioutil.WriteFile("./var/run/vascserver.pid", []byte(pid), 0666)
+    fmt.Println("Writing pid file...")
+    pid     := fmt.Sprintf("%d", os.Getpid())
+    err := ioutil.WriteFile(*pidfile, []byte(pid), 0666)
+    if err!=nil {
+        fmt.Println("Cannot write pid file:" + err.Error())
+    }
 }
 
 func SetupDBConnection(dbEngine, dbUser, dbPassword, dbHost, dbPort, dbName, dbCharset string) (*sql.DB, error) {
