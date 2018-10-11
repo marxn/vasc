@@ -232,8 +232,10 @@ func Serve () {
     //Start web services in background
     go func() {
         httpServer := &http.Server{
-            Addr:    *listen_addr,
-            Handler: serviceCore,
+            Addr:         *listen_addr,
+            Handler:      serviceCore,
+            ReadTimeout:  60 * time.Second,
+		    WriteTimeout: 60 * time.Second,
         }
 
         InfoLog("Service starting... ")
