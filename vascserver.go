@@ -1,18 +1,16 @@
 package vasc
 
 import (
-	"database/sql"
 	"flag"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	_ "github.com/go-sql-driver/mysql"
-	"io/ioutil"
-	"net/http"
 	"os"
-	"os/exec"
-	"os/signal"
 	"syscall"
 	"time"
+	"os/exec"
+	"os/signal"
+	"io/ioutil"
+	"net/http"
+	"github.com/gin-gonic/gin"
 )
 
 const serviceLoopIntervalNS = 1000000000
@@ -28,10 +26,8 @@ var runnable bool
 var profile *string
 var pidfile *string
 var listen_addr *string
-var watch_addr *string
 var log_level *string
 var mode *string
-//var log_path *string
 var module_list []VascRoute
 
 func signalSetNew() *signalSet {
@@ -97,20 +93,7 @@ func vascSignalBlockingHandle() {
 	}
 }
 
-func listModules(c *gin.Context) {
-
-	result := fmt.Sprintf("Version             Method    Route\n")
-	result += fmt.Sprintf("------------------- --------- ----------------------------------\n")
-
-	for i := 0; i < len(module_list); i++ {
-		result += fmt.Sprintf("%-10s%-20s\n", module_list[i].Method, module_list[i].Route)
-	}
-
-	c.String(200, result)
-}
-
 var serviceCore *gin.Engine
-var moduleManager *gin.Engine
 
 func AddModules(modules []VascRoute) {
 
@@ -137,14 +120,8 @@ func AddModules(modules []VascRoute) {
 			fmt.Println("Unknown method: " + modules[i].Method)
 			continue
 		}
-
-		module_list = append(module_list, modules[i])
 	}
 }
-
-//var logFileHandle *os.File
-//var lastSecondDate string
-//var vascLogWriter *vascServerLogWriter
 
 type vascServerLogItem struct {
 	timestamp string
@@ -186,55 +163,8 @@ func exec_shell(s string) {
 	cmd := exec.Command("/bin/bash", "-c", s)
 	cmd.Run()
 }
-/*
-func vascServerLogFileUpdate(serverLogFile string) {
-	logFileHandle, _ = os.OpenFile(qualifyPath(*log_path)+serverLogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-	lastSecondDate = time.Now().Format("2006-01-02")
-}
 
-func vascServerLogRotating(w *vascServerLogWriter) {
-	exec_shell("mkdir " + qualifyPath(*log_path))
-	vascServerLogFileUpdate("vascserver-" + time.Now().Format("2006-01-02") + ".log")
-	for runnable {
-		logItem := <-w.logBuffer
-		if logItem.timestamp != lastSecondDate {
-			logFileHandle.Close()
-
-			//Compress rotated log file
-			cmd := "gzip " + qualifyPath(*log_path) + "vascserver-" + lastSecondDate + ".log"
-			go exec_shell(cmd)
-
-			//Generate a new log file
-			vascServerLogFileUpdate("vascserver-" + time.Now().Format("2006-01-02") + ".log")
-		}
-
-		logFileHandle.WriteString(logItem.logitem)
-	}
-}
-*/
 func Serve() {
-
-	//Install module manager for listing
-	moduleManager.GET("checkmodules", listModules)
-
-	//Launch module manager
-	if *watch_addr != "" {
-		go func() {
-			s := &http.Server{
-				Addr:    *watch_addr,
-				Handler: moduleManager,
-			}
-
-			InfoLog("Starting module manager... ")
-			err := s.ListenAndServe()
-
-			if err != nil {
-				ErrorLog("Module manager starting failed: %s", err.Error())
-				fmt.Println("Module manager failed: " + err.Error())
-				os.Exit(-1)
-			}
-		}()
-	}
 	//Start signal dispatching
 	go vascSignalBlockingHandle()
 
@@ -276,9 +206,6 @@ func Serve() {
 
 	runnable = true
 
-	//Log file redirecting & rotating
-	//go vascServerLogRotating(vascLogWriter)
-
 	for runnable {
 		time.Sleep(serviceLoopIntervalNS)
 	}
@@ -290,22 +217,19 @@ func InitServer(project_name string) error {
 
 	SetProjectName(project_name)
 
-	listen_addr = flag.String("listen",     "localhost:8080",          "listening address")
-	watch_addr  = flag.String("watch_addr", "",                        "watch address")
-	profile     = flag.String("profile",    "dev",                     "profile for running environment(dev, test, online, ...)")
-	pidfile     = flag.String("pidfile",    "/var/run/vascserver.pid", "pid filename")
-	mode        = flag.String("mode",       "release",                 "running mode(debug, release, bootstrap)")
-	//log_path    = flag.String("log_path",   "./",                      "vascserver log file path")
-	log_level   = flag.String("log_level",  "debug",                   "log level(debug, info, warning, error)")
+	listen_addr = flag.String("listen",     "localhost:8080", "listening address")
+	profile     = flag.String("profile",    "dev",            "profile for running environment(dev, test, online, ...)")
+	pidfile     = flag.String("pidfile",    "",               "pid filename")
+	mode        = flag.String("mode",       "release",        "running mode(debug, release, bootstrap)")
+	log_level   = flag.String("log_level",  "debug",          "log level(debug, info, warning, error)")
 
 	flag.Parse()
     
-	GeneratePidFile()
-	gin.DisableConsoleColor()
+    if *pidfile != "" {
+	    GeneratePidFile()
+	}
+	
 	gin.SetMode(gin.ReleaseMode)
-
-	//vascLogWriter = vascGetNewLogWriter()
-	//gin.DefaultWriter = vascLogWriter
 
 	if *mode == "debug" {
 		gin.SetMode(gin.DebugMode)
@@ -327,7 +251,6 @@ func InitServer(project_name string) error {
 	SetLogLevel(log_level_num)
 
 	serviceCore = gin.Default()
-	moduleManager = gin.Default()
 
 	return nil
 }
@@ -346,8 +269,4 @@ func GeneratePidFile() {
 	if err != nil {
 		fmt.Println("Cannot write pid file:" + err.Error())
 	}
-}
-
-func SetupDBConnection(dbEngine, dbUser, dbPassword, dbHost, dbPort, dbName, dbCharset string) (*sql.DB, error) {
-	return sql.Open(dbEngine, fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=%s", dbUser, dbPassword, dbHost, dbPort, dbName, dbCharset))
 }
