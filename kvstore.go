@@ -15,18 +15,21 @@ const mod_factor1 = 13
 const mod_factor2 = 101
 
 type KVManager struct {
-    FSRoot     string
-    RedisConn  redis.Conn
-    Expiration map[string]int64
+    ProjectName string
+    FSRoot      string
+    RedisHost   string
+    RedisPasswd string
+    RedisConn   redis.Conn
+    Expiration  map[string]int64
 }
 
-func (this * KVManager) InitKVStore(projectName, redisHost, redisPasswd string) error {
-    this.FSRoot = fmt.Sprintf("./%s", projectName)
+func (this * KVManager) InitKVStore() error {   
+    this.FSRoot = fmt.Sprintf("./%s", this.ProjectName)
     rand.Seed(time.Now().UnixNano())
     
-    conn, err := redis.Dial("tcp", redisHost, redis.DialPassword(redisPasswd))
+    conn, err := redis.Dial("tcp", this.RedisHost, redis.DialPassword(this.RedisPasswd))
     if err!=nil {
-        return errors.New("Cannot connect to redis instance:" + redisHost)
+        return errors.New("Cannot connect to redis instance:" + this.RedisHost)
     }
     
     this.RedisConn = conn
@@ -34,10 +37,11 @@ func (this * KVManager) InitKVStore(projectName, redisHost, redisPasswd string) 
     return nil
 }
 
-func (this * KVManager) Close() {
-    if this.RedisConn != nil {
-        this.RedisConn.Close()
-    }
+func (this * KVManager) LoadConfig(projectName string, profile string) error {
+    this.ProjectName = projectName
+    this.RedisHost   = "3a6c14d1c517408d.redis.rds.aliyuncs.com:6379"
+    this.RedisPasswd = "Ieq6kabZiGTgQPt"
+    return this.InitKVStore()
 }
 
 func (this * KVManager) WriteKV(key string, value string, expiration int64, needSync bool) error {

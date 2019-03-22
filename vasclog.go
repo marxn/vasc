@@ -4,15 +4,12 @@ import (
     "fmt"
     "errors"
     "log/syslog"
-    "github.com/gin-gonic/gin"
 )
 
-type VascRoute struct {
-    Method        string
-    Route         string
-    RouteHandler  gin.HandlerFunc
-    Middleware    gin.HandlerFunc
-    LocalFilePath string
+type VascLog struct {
+    ProjectName string
+    LogLevel    int
+    Logger     *syslog.Writer
 }
 
 const (
@@ -22,63 +19,63 @@ const (
 	LOG_ERROR = 3
 )
 
-var projectName string = "VASCSERVER"
-var logLevel    int    = LOG_DEBUG 
-
-func vascLogWrapper(level int, s string) error {
-	logger, err := syslog.New(syslog.LOG_DEBUG|syslog.LOG_LOCAL6, projectName)
-	if err != nil {
-		return errors.New("Could not open syslog for writing")
-	}
-
+func (this *VascLog) vascLogWrapper(level int, s string) {
 	switch level {
 	case LOG_DEBUG:
-		logger.Debug(s)
+		this.Logger.Debug(s)
 	case LOG_INFO:
-		logger.Info(s)
+		this.Logger.Info(s)
 	case LOG_WARN:
-		logger.Warning(s)
+		this.Logger.Warning(s)
 	case LOG_ERROR:
-		logger.Err(s)
+		this.Logger.Err(s)
 	default:
-		logger.Err(s)
+		this.Logger.Err(s)
 	}
+}
 
-	logger.Close()
+func (this *VascLog) LoadConfig(projectName string, profile string) error {
+    this.ProjectName = projectName
+    this.LogLevel    = LOG_DEBUG
+    
+    logger, err := syslog.New(syslog.LOG_DEBUG|syslog.LOG_LOCAL6, this.ProjectName)
+	if err != nil {
+		return errors.New("Could not open syslog")
+	}
+	
+	this.Logger = logger
+	
 	return nil
 }
 
-func ErrorLog(format string, v ...interface{}) {
-	if LOG_ERROR >= logLevel {
-		vascLogWrapper(LOG_ERROR, fmt.Sprintf(format, v...))
+func (this *VascLog) Close() {
+	this.Logger.Close()
+}
+
+func (this *VascLog) ErrorLog(format string, v ...interface{}) {
+	if this.LogLevel <= LOG_ERROR {
+		this.vascLogWrapper(LOG_ERROR, fmt.Sprintf(format, v...))
 	}
 }
 
-func InfoLog(format string, v ...interface{}) {
-	if LOG_WARN >= logLevel {
-		vascLogWrapper(LOG_ERROR, fmt.Sprintf(format, v...))
+func (this *VascLog) InfoLog(format string, v ...interface{}) {
+	if this.LogLevel <= LOG_WARN {
+		this.vascLogWrapper(LOG_INFO, fmt.Sprintf(format, v...))
 	}
 }
 
-func WarnLog(format string, v ...interface{}) {
-	if LOG_INFO >= logLevel {
-		vascLogWrapper(LOG_ERROR, fmt.Sprintf(format, v...))
+func (this *VascLog) WarnLog(format string, v ...interface{}) {
+	if this.LogLevel <= LOG_INFO {
+		this.vascLogWrapper(LOG_WARN, fmt.Sprintf(format, v...))
 	}
 }
 
-func DebugLog(format string, v ...interface{}) {
-	if LOG_DEBUG >= logLevel {
-		vascLogWrapper(LOG_ERROR, fmt.Sprintf(format, v...))
+func (this *VascLog) DebugLog(format string, v ...interface{}) {
+	if this.LogLevel <= LOG_DEBUG {
+		this.vascLogWrapper(LOG_DEBUG, fmt.Sprintf(format, v...))
 	}
 }
 
-func SetLogLevel(level int) {
-	logLevel = level
-}
-
-func SetProjectName(name string) {
-    projectName = name
-}
-
-func DefaultMiddleware(c *gin.Context) {
+func (this *VascLog) SetLogLevel(level int) {
+    this.LogLevel = level
 }
