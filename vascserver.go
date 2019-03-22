@@ -181,7 +181,7 @@ func Serve() {
 
 		err := httpServer.ListenAndServe()
 
-		//Try to listen for some time in case of address in use
+		//Try to listen for some times in case of address in use
 		counter := 0
 		for {
 			if err == nil {
@@ -220,7 +220,7 @@ func InitServer(project_name string) error {
 	listen_addr = flag.String("listen",     "localhost:8080", "listening address")
 	profile     = flag.String("profile",    "dev",            "profile for running environment(dev, test, online, ...)")
 	pidfile     = flag.String("pidfile",    "",               "pid filename")
-	mode        = flag.String("mode",       "release",        "running mode(debug, release, bootstrap)")
+	mode        = flag.String("mode",       "release",        "running mode(debug, release, bootstrap...)")
 	log_level   = flag.String("log_level",  "debug",          "log level(debug, info, warning, error)")
 
 	flag.Parse()
