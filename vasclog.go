@@ -34,7 +34,7 @@ func (this *VascLog) vascLogWrapper(level int, s string) {
 	}
 }
 
-func (this *VascLog) LoadConfig(projectName string, profile string) error {
+func (this *VascLog) LoadConfig(configfile string, projectName string, profile string) error {
     this.ProjectName = projectName
     this.LogLevel    = LOG_DEBUG
     

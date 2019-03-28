@@ -7,6 +7,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type webServerConfig struct {
+    WebServerAddress  string         `json:"webserver_address"`
+}
+
 type VascWebServer struct {
     ProjectName     string
     ServiceCore    *gin.Engine
@@ -24,7 +28,7 @@ type VascRoute struct {
     LocalFilePath string
 }
 
-func (this *VascWebServer) LoadConfig(projectName string, profile string) error {
+func (this *VascWebServer) LoadConfig(configFile string, projectName string, profile string) error {
     gin.SetMode(gin.ReleaseMode)  //gin.SetMode(gin.DebugMode)
     this.ServiceCore     = gin.Default()
     this.ProjectName     = projectName
@@ -34,6 +38,9 @@ func (this *VascWebServer) LoadConfig(projectName string, profile string) error 
     
     
     return nil
+}
+
+func (this *VascWebServer) Close() {
 }
 
 func (this *VascWebServer) SetAddr(addr string) {
