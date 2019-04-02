@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"os"
 	"errors"
+	"syscall"
+	"os/signal"
 	"io/ioutil"
 )
 
 const VASC_NONE      = 0x0
-const VASC_LOG       = 0x01 << 0
 const VASC_WEBSERVER = 0x01 << 1
 const VASC_CACHE     = 0x01 << 2
 const VASC_DB        = 0x01 << 3
@@ -54,9 +55,12 @@ func InitInstance(projectName string, bitCode uint64) error {
     vascInstance = new(VascService)
     vascInstance.BitCode = bitCode
     
-    if(bitCode | VASC_LOG != 0) {
+    if(true) {
         vascInstance.Log = new(VascLog)
-        vascInstance.Log.LoadConfig(*configfile, projectName, vascProfile)
+        err := vascInstance.Log.LoadConfig(*configfile, projectName, vascProfile)
+        if err!=nil {
+        
+        }
         
         switch *logLevel {
         	case "debug":
@@ -68,7 +72,7 @@ func InitInstance(projectName string, bitCode uint64) error {
         	case "error":
         		vascInstance.Log.SetLogLevel(LOG_ERROR)
             default:
-                return errors.New("profile cannot be empty")
+                return errors.New("invalid log level")
         	}
     }
     
@@ -116,7 +120,7 @@ func InitInstance(projectName string, bitCode uint64) error {
 }
 
 func Close() {
-    if(vascInstance.BitCode & VASC_LOG != 0) {
+    if(true) {
         vascInstance.Log.Close()
     }
     if(vascInstance.BitCode & VASC_WEBSERVER != 0) {
@@ -150,4 +154,10 @@ func GeneratePidFile(pidfile *string) {
 	if err != nil {
 		fmt.Println("Cannot write pid file:" + err.Error())
 	}
+}
+
+func WaitSignal() {
+    c := make(chan os.Signal)
+    signal.Notify(c, os.Interrupt, os.Kill, syscall.SIGUSR1, syscall.SIGUSR2)
+    <-c
 }

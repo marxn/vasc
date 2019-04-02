@@ -4,8 +4,8 @@ import "time"
 import "github.com/garyburd/redigo/redis"
 
 type redisConfig struct {
-    RedisHost         string         `json:"redis_host"`
-    RedisPasswd       string         `json:"redis_passwd"`
+    Host         string         `json:"host"`
+    Passwd       string         `json:"passwd"`
 }
 
 type VascRedis struct {

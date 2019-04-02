@@ -79,3 +79,19 @@ func (this *VascLog) DebugLog(format string, v ...interface{}) {
 func (this *VascLog) SetLogLevel(level int) {
     this.LogLevel = level
 }
+
+func ErrorLog(format string, v ...interface{}) {
+    GetVascInstance().Log.ErrorLog(format, v...)
+}
+
+func InfoLog(format string, v ...interface{}) {
+    GetVascInstance().Log.InfoLog(format, v...)
+}
+
+func WarnLog(format string, v ...interface{}) {
+    GetVascInstance().Log.WarnLog(format, v...)
+}
+
+func DebugLog(format string, v ...interface{}) {
+    GetVascInstance().Log.DebugLog(format, v...)
+}

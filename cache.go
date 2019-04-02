@@ -20,7 +20,7 @@ type CacheManager struct {
     FSRoot      string
     RedisHost   string
     RedisPasswd string
-    RedisConn   redis.Conn
+    RedisConn  *VascRedis
     RedisPrefix string
     Expiration  map[string]int64
 }
@@ -32,15 +32,12 @@ type cacheConfigFile struct {
     CacheRedisPrefix  string         `json:"cache_redis_prefix"`
 }
 
-func (this * CacheManager) InitKVStore() error {
+func (this * CacheManager) InitCache() error {
     rand.Seed(time.Now().UnixNano())
 
-    conn, err := redis.Dial("tcp", this.RedisHost, redis.DialPassword(this.RedisPasswd))
-    if err!=nil {
-        return errors.New("Cannot connect to cache redis instance:" + this.RedisHost)
-    }
-
-    this.RedisConn = conn
+    this.RedisConn = new(VascRedis)
+    this.RedisConn.SetConfig(this.RedisHost, this.RedisPasswd, this.RedisPrefix)
+    
     this.Expiration = make(map[string]int64)
     return nil
 }
@@ -70,7 +67,7 @@ func (this * CacheManager) LoadConfig(configPath string, projectName string, pro
     this.RedisPrefix = jsonResult.CacheRedisPrefix
     this.FSRoot      = jsonResult.CacheRootPath + "/" + projectName
 
-    return this.InitKVStore()
+    return this.InitCache()
 }
 
 func (this * CacheManager) Close() {
@@ -179,12 +176,18 @@ func md5Hash(content string) string {
 
 func (this * CacheManager) SaveRedis(key string, value string, expiration int64) error {
     redisKey := md5Hash(this.RedisPrefix + key)
-    _, err := this.RedisConn.Do("SETEX", redisKey, expiration, value)
+    redisConn := this.RedisConn.Get()
+    defer redisConn.Close()
+    
+    _, err := redisConn.Do("SETEX", redisKey, expiration, value)
     return err
 }
 
 func (this * CacheManager) GetRedis(key string) string {
     redisKey := md5Hash(this.RedisPrefix + key)
-    ret, _ := redis.String(this.RedisConn.Do("GET", redisKey, this.RedisPrefix + key))
+    redisConn := this.RedisConn.Get()
+    defer redisConn.Close()
+    
+    ret, _ := redis.String(redisConn.Do("GET", redisKey, this.RedisPrefix + key))
     return ret
 }

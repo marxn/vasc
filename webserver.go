@@ -1,23 +1,27 @@
 package vasc
 
-import (
-	"time"
-	"net/http"
-	"errors"
-	"github.com/gin-gonic/gin"
-)
+import "time"
+import "net/http"
+import "errors"
+import "io/ioutil"
+import "encoding/json"
+import "github.com/gin-gonic/gin"
 
 type webServerConfig struct {
-    WebServerAddress  string         `json:"webserver_address"`
+    ListenAddr        string         `json:"listen_address"`
+    ListenRetry       int            `json:"listen_retry"`
+    ReadTimeout       int            `json:"read_timeout"`
+    WriteTimeout      int            `json:"write_timeout"`
 }
 
 type VascWebServer struct {
     ProjectName     string
     ServiceCore    *gin.Engine
-    ListenRetryTime int
+    ListenRetry     int
     ListenAddr      string
     ReadTimeout     time.Duration
     WriteTimeout    time.Duration
+    HttpServer     *http.Server
 }
 
 type VascRoute struct {
@@ -29,53 +33,72 @@ type VascRoute struct {
 }
 
 func (this *VascWebServer) LoadConfig(configFile string, projectName string, profile string) error {
-    gin.SetMode(gin.ReleaseMode)  //gin.SetMode(gin.DebugMode)
-    this.ServiceCore     = gin.Default()
+    this.ProjectName = projectName
+    config, err := ioutil.ReadFile(configFile + "/" + projectName + "/webserver.json")
+    
+    if err != nil{
+        return errors.New("Cannot find webserver config file for project:" + projectName)
+    }
+    
+    var jsonResult webServerConfig
+    err = json.Unmarshal([]byte(config), &jsonResult)
+    if err != nil {
+        return errors.New("Cannot parse webserver config file for project:" + projectName)
+    }
+    
+    gin.SetMode(gin.ReleaseMode)
+    engine := gin.New()  
+    engine.Use(gin.Recovery())  
+    
+    this.ServiceCore     = engine//gin.Default()
     this.ProjectName     = projectName
-    this.ListenRetryTime = 3
-    this.ReadTimeout     = 60
-    this.WriteTimeout    = 60
+    this.ListenAddr      = jsonResult.ListenAddr
+    this.ListenRetry     = jsonResult.ListenRetry
+    this.ReadTimeout     = time.Duration(jsonResult.ReadTimeout)
+    this.WriteTimeout    = time.Duration(jsonResult.WriteTimeout)
     
-    
-    return nil
+    return this.InitWebserver()
 }
 
 func (this *VascWebServer) Close() {
+    this.HttpServer.Close()
 }
 
-func (this *VascWebServer) SetAddr(addr string) {
-    this.ListenAddr = addr
-}
-
-func (this *VascWebServer) Serve() error {
-	httpServer := &http.Server{
+func (this *VascWebServer) InitWebserver() error {
+	this.HttpServer = &http.Server{
 		Addr:         this.ListenAddr,
 		Handler:      this.ServiceCore,
 		ReadTimeout:  this.ReadTimeout  * time.Second,
 		WriteTimeout: this.WriteTimeout * time.Second,
 	}
-
-	err := httpServer.ListenAndServe()
-
-	//Try to listen for some times in case of address in use
-	counter := 0
-	for {
-		if err == nil {
-			break
-		}
-
-		counter++
-		time.Sleep(time.Second)
-		err = httpServer.ListenAndServe()
-		if err != nil && counter >= this.ListenRetryTime {
-			return errors.New("ListenAndServe failed: " + err.Error())
-		}
-	}
 	
+    return nil
+}
+
+func (this *VascWebServer) Serve() error {
+    timer := time.NewTimer(time.Second * time.Duration(this.ListenRetry + 1))
+    succ  := make(chan bool)
+    defer close(succ)
+    
+    go func() {
+    	for counter := 0; counter < this.ListenRetry; counter++ {
+    	    this.HttpServer.ListenAndServe()
+    		time.Sleep(time.Second)
+    	}
+    	succ <- false
+    }()
+    
+    select {
+    		case <-timer.C:
+    		    return nil
+    		case <-succ:
+    		    return errors.New("ListenAndServe failed")
+	}
+    
 	return nil
 }
 
-func (this *VascWebServer) AddModules(modules []VascRoute) {
+func (this *VascWebServer) LoadModules(modules []VascRoute) {
 	for i := 0; i < len(modules); i++ {
 		switch modules[i].Method {
 		case "GET":
@@ -99,5 +122,6 @@ func (this *VascWebServer) AddModules(modules []VascRoute) {
 		}
 	}
 }
-func (this *VascWebServer) DefaultMiddleware(c *gin.Context) {
+
+func DefaultMiddleware(c *gin.Context) {
 }

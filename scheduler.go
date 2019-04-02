@@ -83,23 +83,22 @@ func (this * VascScheduler) Close() {
     this.RedisConn.Close()
 }
 
-func (this * VascScheduler) SmartSleep(sleepTime time.Duration) bool {
+func (this * VascScheduler) smartSleep(sleepTime int64) bool {
     if sleepTime < 0 {
         return true
-    } else if sleepTime <= time.Second {
-        time.Sleep(sleepTime)
+    } else if sleepTime==1 {
+        time.Sleep(time.Second)
         return true
     }
     
-    var times int64 = int64(int64(sleepTime) / int64(time.Second))
-    var i int64 = 0
-    for ; i < times; i++ {
-        time.Sleep(time.Second)
+    targetTime := time.Now().Unix() + sleepTime
+    for time.Now().Unix() < targetTime {
+        
         if this.Runnable==false {
             return false
         }
+        time.Sleep(time.Second)
     }
-    
     return true
 }
 
@@ -219,7 +218,7 @@ func (this *VascScheduler) setSchedule(scheduleKey string, schedule VascSchedule
                         
                         this.ReleaseToken(key, lockValue)
                     } else {
-                        fmt.Sprintf("%s has been locked\n", key)
+                        fmt.Printf("%s has been locked\n", key)
                         time.Sleep(time.Second * time.Duration(interval))
                     }
                 }
@@ -227,48 +226,70 @@ func (this *VascScheduler) setSchedule(scheduleKey string, schedule VascSchedule
             this.ScheduleWaitGroup.Done()
         }(scheduleKey, interval)
     } else if scheduleType==VASC_SCHEDULE_FIXED {
-        if timestamp < time.Now().Unix() {
-            return errors.New("Invalid timestamp")
+        if interval==0 && time.Now().Unix() > timestamp {
+            return errors.New("invalid schedule: timestamp expired with zero-interval")
         }
+        
         this.ScheduleWaitGroup.Add(1)
         go func() {
             timeline := timestamp
-            for ;this.Runnable; {
+            for count:=0; this.Runnable; count++{
+                now := time.Now().Unix()
+                over := int64(0)
+                if interval!=0 {
+                    over = (now - timeline) % interval
+                }
+                //fmt.Printf("now=%d, timeline=%d, over=%d, next=%d\n", now, timeline, over, interval - over)
                 if scope=="NATIVE" {
-                    if time.Now().Unix() >= timeline {
-                        timeline += interval
-                        schedule(scheduleKey)
-                        if interval==0 {
-                            break
+                    if now >= timeline {
+                        if over==0 {
+                            schedule(scheduleKey)
+                            if interval==0 {
+                                break
+                            }
+                            if this.smartSleep(interval)==false {
+                                break
+                            }
+                            timeline = now + interval
+                        } else {
+                            if this.smartSleep(interval - over)==false {
+                                break
+                            }
+                            timeline = now + interval - over
                         }
-                        if this.SmartSleep(time.Second * time.Duration(interval))==false {
-                            break
-                        }
-                        
                     } else {
-                        if this.SmartSleep(time.Second * time.Duration(timeline - time.Now().Unix()))==false {
+                        if this.smartSleep(timeline - now)==false {
                             break
                         }
                     }
                 } else if scope=="GLOBAL" {
-                    now := time.Now().Unix()
                     if  now >= timeline {
-                        timeline += interval
-                        lockValue := this.GetGlobalToken(scheduleKey, interval - (now - timeline))
-                        if lockValue!="" {
-                            schedule(scheduleKey)
-                            if this.SmartSleep(time.Second * time.Duration(interval - (time.Now().Unix() - now)))==false {
-                                break
+                        if over==0 {
+                            lockValue := this.GetGlobalToken(scheduleKey, interval)
+                            if lockValue!="" {
+                                schedule(scheduleKey)
+                                if this.smartSleep(interval)==false {
+                                    break
+                                }
+                                if interval==0 {
+                                    break
+                                }
+                                this.ReleaseToken(scheduleKey, lockValue)
+                            } else {
+                                fmt.Printf("%s has been locked:%d\n", scheduleKey, now)
+                                if interval==0 || this.smartSleep(interval)==false {
+                                    break
+                                }
                             }
-                            this.ReleaseToken(scheduleKey, lockValue)
+                            timeline = now + interval
                         } else {
-                            fmt.Sprintf("%s has been locked\n", scheduleKey)
-                            if this.SmartSleep(time.Second * time.Duration(interval))==false {
+                            if this.smartSleep(interval - over)==false {
                                 break
                             }
+                            timeline = now + interval - over
                         }
                     } else {
-                        if this.SmartSleep(time.Second * time.Duration(timeline - time.Now().Unix()))==false {
+                        if this.smartSleep(timeline - now)==false {
                             break
                         }
                     }
@@ -292,6 +313,9 @@ func (this *VascScheduler) GetGlobalToken(key string, life int64) string {
     redisConn := this.RedisConn.Get()
     defer redisConn.Close()
     
+    if life==0 {
+        life = 86400
+    }
     _, err := redis.String(redisConn.Do("SET", this.RedisPrefix + "token:" + key, lockValue, "EX", life, "NX")) 
     
 	if err==redis.ErrNil {
