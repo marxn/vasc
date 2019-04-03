@@ -50,7 +50,7 @@ func (this *VascWebServer) LoadConfig(configFile string, projectName string, pro
     engine := gin.New()  
     engine.Use(gin.Recovery())  
     
-    this.ServiceCore     = engine//gin.Default()
+    this.ServiceCore     = engine
     this.ProjectName     = projectName
     this.ListenAddr      = jsonResult.ListenAddr
     this.ListenRetry     = jsonResult.ListenRetry
@@ -75,7 +75,7 @@ func (this *VascWebServer) InitWebserver() error {
     return nil
 }
 
-func (this *VascWebServer) Serve() error {
+func (this *VascWebServer) Start() error {
     timer := time.NewTimer(time.Second * time.Duration(this.ListenRetry + 1))
     succ  := make(chan bool)
     defer close(succ)

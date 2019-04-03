@@ -24,11 +24,13 @@ type VascService struct {
     DB         *VascDataBase
     Redis      *VascRedis
     Scheduler  *VascScheduler
+    Reloader    func ()
     BitCode    uint64
 }
 
 var vascInstance *VascService
 var vascProfile  string
+var vascSignalChan chan os.Signal
 
 func InitInstance(projectName string, bitCode uint64) error {
     configfile := flag.String("config",   "./",    "config file path")
@@ -52,6 +54,11 @@ func InitInstance(projectName string, bitCode uint64) error {
     
     vascProfile = *profile
     
+    //Install signal receiver
+    vascSignalChan = make(chan os.Signal)
+    signal.Notify(vascSignalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGUSR1, syscall.SIGUSR2)
+    
+    //Initliaze object
     vascInstance = new(VascService)
     vascInstance.BitCode = bitCode
     
@@ -144,6 +151,10 @@ func GetVascInstance() *VascService {
     return vascInstance
 }
 
+func RegisterReloader(reloader func ()) {
+    vascInstance.Reloader = reloader
+}
+
 func GetProfile() string {
     return vascProfile
 }
@@ -157,7 +168,13 @@ func GeneratePidFile(pidfile *string) {
 }
 
 func WaitSignal() {
-    c := make(chan os.Signal)
-    signal.Notify(c, os.Interrupt, os.Kill, syscall.SIGUSR1, syscall.SIGUSR2)
-    <-c
+    for {
+        s := <- vascSignalChan
+        switch s {
+            case syscall.SIGUSR2:
+                vascInstance.Reloader()
+            default:
+                return
+        }
+    }
 }
