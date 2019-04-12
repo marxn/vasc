@@ -1,3 +1,9 @@
+/*
+ * A schedule manager which used to sync services running in cluster
+ * It is a simple alternative scheme for CRON, which runs only on single machine
+ * Author: Kevin Wang
+ */
+ 
 package vasc
 
 import "fmt"
@@ -5,14 +11,12 @@ import "time"
 import "errors"
 import "sync"
 import "math/rand"
-import "io/ioutil"
 import "encoding/json"
 import "github.com/garyburd/redigo/redis"
 
 type scheduleConfig struct {
     SchedulerRedisHost    string         `json:"scheduler_redis_host"`
     SchedulerRedisPasswd  string         `json:"scheduler_redis_passwd"`
-    SchedulerRedisPrefix  string         `json:"scheduler_redis_prefix"`
     SchedulerDBConnStr    string         `json:"scheduler_db_connstr"`
 }
 
@@ -43,38 +47,25 @@ type VascScheduler struct {
 const VASC_SCHEDULE_FIXED      = 1
 const VASC_SCHEDULE_OVERLAPPED = 2
 const VASC_SCHEDULE_SERIAL     = 3
+const VASC_SCHEDULE_MESSAGEDRV = 4
 
 const VASC_SCHEDULE_SCOPE_NATIVE = 1
 const VASC_SCHEDULE_SCOPE_HOST   = 2
 const VASC_SCHEDULE_SCOPE_GLOBAL = 3
 
-func (this *VascScheduler) LoadConfig(configFile string, projectName string, profile string) error {
+func (this *VascScheduler) LoadConfig(config *scheduleConfig, projectName string) error {
     this.ProjectName = projectName
-    
-    config, err := ioutil.ReadFile(configFile + "/" + projectName + "/scheduler.json")
-    
-    if err != nil{
-        return errors.New("Cannot find scheduler config file for project:" + projectName)
-    }
-    
-    var jsonResult scheduleConfig
-    err = json.Unmarshal([]byte(config), &jsonResult)
-    if err != nil {
-        return errors.New("Cannot parse scheduler config file for project:" + projectName)
-    }
-    
-    this.RedisHost   = jsonResult.SchedulerRedisHost
-    this.RedisPasswd = jsonResult.SchedulerRedisPasswd
-    this.RedisPrefix = jsonResult.SchedulerRedisPrefix
-    this.DBConnStr   = jsonResult.SchedulerDBConnStr
+    this.RedisHost   = config.SchedulerRedisHost
+    this.RedisPasswd = config.SchedulerRedisPasswd
+    this.DBConnStr   = config.SchedulerDBConnStr
+    this.RedisPrefix = fmt.Sprintf("%s:SCHEDULE:", projectName)
     
     return this.InitScheduler()
 }
 
 func (this * VascScheduler) InitScheduler() error {   
     this.RedisConn = new(VascRedis)
-    this.RedisConn.SetConfig(this.RedisHost, this.RedisPasswd, this.RedisPrefix)
-    
+    this.RedisConn.LoadConfig(&redisConfig{RedisHost: this.RedisHost, RedisPasswd: this.RedisPasswd}, this.ProjectName)
     return nil
 }
 
@@ -160,6 +151,10 @@ func (this *VascScheduler) traverseCycleScheduleList () error {
 }
 
 func (this *VascScheduler) LoadSchedule(scheduleList []ScheduleInfo) error {
+    if scheduleList==nil {
+        return nil
+    }
+    
     this.Runnable = false
     this.ScheduleWaitGroup.Wait()
     this.CycleScheduleList  = make(map[string]*ScheduleInfo)
@@ -175,121 +170,135 @@ func (this *VascScheduler) LoadSchedule(scheduleList []ScheduleInfo) error {
     return nil
 }
 
-func (this *VascScheduler) setSchedule(scheduleKey string, schedule VascSchedule, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
-    if scheduleType==VASC_SCHEDULE_OVERLAPPED {
-        if this.CycleScheduleList[scheduleKey]!=nil {
-            return errors.New("Duplicated key")
-        }
-        
-        this.CycleScheduleList[scheduleKey] = &ScheduleInfo {
-            Key     : scheduleKey,
-            Routine : schedule,
-            Type    : scheduleType,
-            Interval: interval,
-            Timestamp: timestamp,
-            Scope   : scope,
-            LastRunTime : 0,
-        }
-    } else if scheduleType==VASC_SCHEDULE_SERIAL {
-        
-        this.ScheduleWaitGroup.Add(1)
-        go func(key string, interval int64) {
-            for ;this.Runnable; {
-                if scope==VASC_SCHEDULE_SCOPE_NATIVE {
+func (this *VascScheduler) StartSerialSchedule(scheduleKey string, schedule VascSchedule, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
+    this.ScheduleWaitGroup.Add(1)
+    go func(key string, interval int64) {
+        for ;this.Runnable; {
+            if scope==VASC_SCHEDULE_SCOPE_NATIVE {
+                schedule(key)
+                time.Sleep(time.Second * time.Duration(interval))
+            } else if scope==VASC_SCHEDULE_SCOPE_GLOBAL {
+                lockValue := this.GetGlobalToken(key, interval)
+                if lockValue!="" {
                     schedule(key)
                     time.Sleep(time.Second * time.Duration(interval))
-                } else if scope==VASC_SCHEDULE_SCOPE_GLOBAL {
-                    lockValue := this.GetGlobalToken(key, interval)
-                    if lockValue!="" {
-                        schedule(key)
-                        time.Sleep(time.Second * time.Duration(interval))
-                        
-                        this.ReleaseToken(key, lockValue)
-                    } else {
-                        fmt.Printf("%s has been locked\n", key)
-                        time.Sleep(time.Second * time.Duration(interval))
-                    }
+                    
+                    this.ReleaseToken(key, lockValue)
+                } else {
+                    fmt.Printf("%s has been locked\n", key)
+                    time.Sleep(time.Second * time.Duration(interval))
                 }
             }
-            this.ScheduleWaitGroup.Done()
-        }(scheduleKey, interval)
-    } else if scheduleType==VASC_SCHEDULE_FIXED {
-        if interval==0 && time.Now().Unix() > timestamp {
-            return errors.New("invalid schedule: timestamp expired with zero-interval")
         }
-        this.ScheduleWaitGroup.Add(1)
-        go func() {
-            timeline := timestamp
-            for ; this.Runnable; {
-                now := time.Now().Unix()
-                over := int64(0)
-                if interval!=0 {
-                    over = (now - timeline) % interval
+        this.ScheduleWaitGroup.Done()
+    }(scheduleKey, interval)
+    
+    return nil
+}
+
+func (this *VascScheduler) StartOverlappedSchedule(scheduleKey string, schedule VascSchedule, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
+    if this.CycleScheduleList[scheduleKey]!=nil {
+        return errors.New("Duplicated key")
+    }
+    this.CycleScheduleList[scheduleKey] = &ScheduleInfo {
+        Key     : scheduleKey,
+        Routine : schedule,
+        Type    : scheduleType,
+        Interval: interval,
+        Timestamp: timestamp,
+        Scope   : scope,
+        LastRunTime : 0,
+    }
+    return nil
+}
+
+func (this *VascScheduler) StartFixedSchedule(scheduleKey string, schedule VascSchedule, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
+    if interval==0 && time.Now().Unix() > timestamp {
+        return errors.New("invalid schedule: timestamp expired with zero-interval")
+    }
+    this.ScheduleWaitGroup.Add(1)
+    go func() {
+        timeline := timestamp
+        for ; this.Runnable; {
+            now := time.Now().Unix()
+            over := int64(0)
+            if interval!=0 {
+                over = (now - timeline) % interval
+            }
+            fmt.Printf("now=%d, timeline=%d, over=%d, next=%d\n", now, timeline, over, interval - over)
+            if scope==VASC_SCHEDULE_SCOPE_NATIVE {
+                if now >= timeline {
+                    if over==0 {
+                        schedule(scheduleKey)
+                        if interval==0 {
+                            break
+                        }
+                        if this.smartSleep(interval)==false {
+                            break
+                        }
+                        timeline = now + interval
+                    } else {
+                        if this.smartSleep(interval - over)==false {
+                            break
+                        }
+                        timeline = now + interval - over
+                    }
+                } else {
+                    if this.smartSleep(timeline - now)==false {
+                        break
+                    }
                 }
-                fmt.Printf("now=%d, timeline=%d, over=%d, next=%d\n", now, timeline, over, interval - over)
-                if scope==VASC_SCHEDULE_SCOPE_NATIVE {
-                    if now >= timeline {
-                        if over==0 {
+            } else if scope==VASC_SCHEDULE_SCOPE_GLOBAL {
+                if  now >= timeline {
+                    if over==0 {
+                        lockValue := this.GetGlobalToken(scheduleKey, interval)
+                        if lockValue!="" {
                             schedule(scheduleKey)
-                            if interval==0 {
-                                break
-                            }
                             if this.smartSleep(interval)==false {
                                 break
                             }
-                            timeline = now + interval
-                        } else {
-                            if this.smartSleep(interval - over)==false {
+                            if interval==0 {
                                 break
                             }
-                            timeline = now + interval - over
-                        }
-                    } else {
-                        if this.smartSleep(timeline - now)==false {
-                            break
-                        }
-                    }
-                } else if scope==VASC_SCHEDULE_SCOPE_GLOBAL {
-                    if  now >= timeline {
-                        if over==0 {
-                            lockValue := this.GetGlobalToken(scheduleKey, interval)
-                            if lockValue!="" {
-                                schedule(scheduleKey)
-                                if this.smartSleep(interval)==false {
-                                    break
-                                }
-                                if interval==0 {
-                                    break
-                                }
-                                this.ReleaseToken(scheduleKey, lockValue)
-                            } else {
-                                fmt.Printf("%s has been locked:%d\n", scheduleKey, now)
-                                if interval==0 || this.smartSleep(interval)==false {
-                                    break
-                                }
-                            }
-                            timeline = now + interval
+                            this.ReleaseToken(scheduleKey, lockValue)
                         } else {
-                            if this.smartSleep(interval - over)==false {
+                            fmt.Printf("%s has been locked:%d\n", scheduleKey, now)
+                            if interval==0 || this.smartSleep(interval)==false {
                                 break
                             }
-                            timeline = now + interval - over
                         }
+                        timeline = now + interval
                     } else {
-                        if this.smartSleep(timeline - now)==false {
+                        if this.smartSleep(interval - over)==false {
                             break
                         }
+                        timeline = now + interval - over
                     }
                 } else {
-                    break
+                    if this.smartSleep(timeline - now)==false {
+                        break
+                    }
                 }
-            } 
-            this.ScheduleWaitGroup.Done()
-        }()
-    } else {
-        return errors.New("Invalid schedule type")
+            } else {
+                break
+            }
+        } 
+        this.ScheduleWaitGroup.Done()
+    }()
+    return nil
+}
+
+func (this *VascScheduler) setSchedule(scheduleKey string, schedule VascSchedule, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
+    switch scheduleType {
+        case VASC_SCHEDULE_OVERLAPPED:
+            return this.StartOverlappedSchedule(scheduleKey, schedule, scheduleType, interval, timestamp, scope)
+        case VASC_SCHEDULE_SERIAL:
+            return this.StartSerialSchedule(scheduleKey, schedule, scheduleType, interval, timestamp, scope)
+        case VASC_SCHEDULE_FIXED:
+            return this.StartFixedSchedule(scheduleKey, schedule, scheduleType, interval, timestamp, scope)
+        default:
+            return errors.New("Invalid schedule type")
     }
-    
     return nil
 }
 
@@ -347,14 +356,14 @@ func (this *VascScheduler) SetGlobalScheduleStatus(key string, info *ScheduleInf
     redisConn := this.RedisConn.Get()
     defer redisConn.Close()
     
-    aKey := fmt.Sprintf("%sschedule:%s", this.RedisPrefix, key)
-    redisConn.Do("SET",  aKey, string(scheduleInfo), "EX", life)
-    return nil
+    aKey := this.RedisPrefix + "info:" + key
+    _, err = redisConn.Do("SET",  aKey, string(scheduleInfo), "EX", life)
+    return err
 }
 
 func (this *VascScheduler) GetGlobalScheduleStatus(key string) *ScheduleInfo {
-    aKey := fmt.Sprintf("%sschedule:%s", this.RedisPrefix, key)
-    
+    aKey := this.RedisPrefix + "info:" + key
+        
     redisConn := this.RedisConn.Get()
     defer redisConn.Close()
     

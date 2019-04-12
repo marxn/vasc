@@ -1,4 +1,9 @@
-////////////Some k-v cache implementation based on POSIX File System - Do not try to migrate to other platforms.
+/*
+ * Some kind of Key-Value styled cache implementation based on Linux File System
+ * It is LOCK-FREE - Do not try to migrate it to other platform.
+ * Author: Kevin Wang
+ */
+
 package vasc
 
 import "os"
@@ -7,7 +12,6 @@ import "time"
 import "errors"
 import "io/ioutil"
 import "encoding/hex"
-import "encoding/json"
 import "crypto/md5"
 import "math/rand"
 import "github.com/garyburd/redigo/redis"
@@ -29,44 +33,29 @@ type cacheConfigFile struct {
     CacheRootPath     string         `json:"cache_rootpath"`
     CacheRedisHost    string         `json:"cache_redis_host"`
     CacheRedisPasswd  string         `json:"cache_redis_passwd"`
-    CacheRedisPrefix  string         `json:"cache_redis_prefix"`
 }
 
 func (this * CacheManager) InitCache() error {
     rand.Seed(time.Now().UnixNano())
-
     this.RedisConn = new(VascRedis)
-    this.RedisConn.SetConfig(this.RedisHost, this.RedisPasswd, this.RedisPrefix)
+    this.RedisConn.LoadConfig(&redisConfig{RedisHost: this.RedisHost, RedisPasswd: this.RedisPasswd}, this.ProjectName)
     
     this.Expiration = make(map[string]int64)
     return nil
 }
 
-func (this * CacheManager) LoadConfig(configPath string, projectName string, profile string) error {
-    this.ProjectName = projectName
-
-    config, err  := ioutil.ReadFile(configPath + "/" + projectName + "/cache.json")
-
-    if err != nil{
-        return errors.New("Cannot find cache config file for project:" + projectName)
-    }
-
-    var jsonResult cacheConfigFile
-    err = json.Unmarshal([]byte(config), &jsonResult)
-    if err != nil {
-        return errors.New("Cannot parse cache config file for project:" + projectName)
-    }
-
-    _, err = os.Stat(jsonResult.CacheRootPath)
+func (this * CacheManager) LoadConfig(config *cacheConfigFile, projectName string) error {
+    _, err := os.Stat(config.CacheRootPath)
     if err != nil {
         return errors.New("Cache directory does not exist")
     }
 
-    this.RedisHost   = jsonResult.CacheRedisHost
-    this.RedisPasswd = jsonResult.CacheRedisPasswd
-    this.RedisPrefix = jsonResult.CacheRedisPrefix
-    this.FSRoot      = jsonResult.CacheRootPath + "/" + projectName
+    this.ProjectName = projectName
+    this.RedisHost   = config.CacheRedisHost
+    this.RedisPasswd = config.CacheRedisPasswd
+    this.FSRoot      = config.CacheRootPath + "/" + projectName
 
+    this.RedisPrefix = fmt.Sprintf("%s:CACHE:", projectName)
     return this.InitCache()
 }
 

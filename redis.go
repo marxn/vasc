@@ -4,26 +4,22 @@ import "time"
 import "github.com/garyburd/redigo/redis"
 
 type redisConfig struct {
-    Host         string         `json:"host"`
-    Passwd       string         `json:"passwd"`
+    RedisHost    string         `json:"redis_host"`
+    RedisPasswd  string         `json:"redis_passwd"`
 }
 
 type VascRedis struct {
     RedisHost    string     
     RedisPasswd  string     
-    RedisPrefix  string     
     RedisPool   *redis.Pool 
 }
 
-func (this *VascRedis) LoadConfig(configFile string, projectName string, profile string) error {
-    return nil
-}
-
-func (this *VascRedis) SetConfig(host string, passwd string, prefix string) {
-    this.RedisHost   = host
-    this.RedisPasswd = passwd
-    this.RedisPrefix = prefix
+func (this *VascRedis) LoadConfig(config *redisConfig, projectName string) error {
+    this.RedisHost   = config.RedisHost
+    this.RedisPasswd = config.RedisPasswd
     this.InitRedis()
+    
+    return nil
 }
 
 func (this *VascRedis) InitRedis() {
