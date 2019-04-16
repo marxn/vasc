@@ -22,26 +22,15 @@ const mod_factor2 = 101
 type CacheManager struct {
     ProjectName string
     FSRoot      string
-    RedisHost   string
-    RedisPasswd string
-    RedisConn  *VascRedis
+    RedisConn  *redis.Pool
     RedisPrefix string
     Expiration  map[string]int64
 }
 
 type cacheConfigFile struct {
+    Enable            bool           `json:"enable"`
     CacheRootPath     string         `json:"cache_rootpath"`
-    CacheRedisHost    string         `json:"cache_redis_host"`
-    CacheRedisPasswd  string         `json:"cache_redis_passwd"`
-}
-
-func (this * CacheManager) InitCache() error {
-    rand.Seed(time.Now().UnixNano())
-    this.RedisConn = new(VascRedis)
-    this.RedisConn.LoadConfig(&redisConfig{RedisHost: this.RedisHost, RedisPasswd: this.RedisPasswd}, this.ProjectName)
-    
-    this.Expiration = make(map[string]int64)
-    return nil
+    CacheSourceRedis  string         `json:"cache_source_redis"`
 }
 
 func (this * CacheManager) LoadConfig(config *cacheConfigFile, projectName string) error {
@@ -49,18 +38,24 @@ func (this * CacheManager) LoadConfig(config *cacheConfigFile, projectName strin
     if err != nil {
         return errors.New("Cache directory does not exist")
     }
-
+    
+    rand.Seed(time.Now().UnixNano())
     this.ProjectName = projectName
-    this.RedisHost   = config.CacheRedisHost
-    this.RedisPasswd = config.CacheRedisPasswd
+    if GetVascInstance().BitCode & VASC_REDIS!=0 && config.CacheSourceRedis!=""{
+        redis := GetVascInstance().Redis.Get(config.CacheSourceRedis)
+        if redis==nil {
+            return errors.New("cannot get redis instance for cache sync")
+        }
+        this.RedisConn = redis
+    }
     this.FSRoot      = config.CacheRootPath + "/" + projectName
-
-    this.RedisPrefix = fmt.Sprintf("%s:CACHE:", projectName)
-    return this.InitCache()
+    this.RedisPrefix = fmt.Sprintf("VASC:%s:CACHE:", projectName)
+    this.Expiration  = make(map[string]int64)
+    
+    return nil
 }
 
 func (this * CacheManager) Close() {
-    this.RedisConn.Close()
 }
 
 func (this * CacheManager) WriteKV(key string, value string, expiration int64, needSync bool) error {
@@ -79,7 +74,10 @@ func (this * CacheManager) WriteKV(key string, value string, expiration int64, n
 func (this * CacheManager) ReadKV(key string, needSync bool) (string, error) {
     value, err := this.GetFromFS(key)
     if value=="" && needSync {
-        value = this.GetRedis(key)
+        value, err := this.GetRedis(key)
+        if err!=nil {
+            return "", err
+        }
         this.SaveToFS(key, value, this.Expiration[key])
     }
 
@@ -166,17 +164,23 @@ func md5Hash(content string) string {
 func (this * CacheManager) SaveRedis(key string, value string, expiration int64) error {
     redisKey := md5Hash(this.RedisPrefix + key)
     redisConn := this.RedisConn.Get()
+    if redisConn==nil {
+        return errors.New("cannot get redis connection for writing")
+    }
     defer redisConn.Close()
     
     _, err := redisConn.Do("SETEX", redisKey, expiration, value)
     return err
 }
 
-func (this * CacheManager) GetRedis(key string) string {
+func (this * CacheManager) GetRedis(key string) (string, error) {
     redisKey := md5Hash(this.RedisPrefix + key)
     redisConn := this.RedisConn.Get()
+    if redisConn==nil {
+        return "", errors.New("cannot get redis connection for reading")
+    }
     defer redisConn.Close()
     
     ret, _ := redis.String(redisConn.Do("GET", redisKey, this.RedisPrefix + key))
-    return ret
+    return ret, nil
 }

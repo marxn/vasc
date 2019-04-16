@@ -6,6 +6,7 @@ import "errors"
 import "github.com/gin-gonic/gin"
 
 type webServerConfig struct {
+    Enable            bool           `json:"enable"`
     ListenAddr        string         `json:"listen_address"`
     ListenRetry       int            `json:"listen_retry"`
     ReadTimeout       int            `json:"read_timeout"`

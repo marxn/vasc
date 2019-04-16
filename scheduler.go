@@ -12,19 +12,18 @@ import "errors"
 import "sync"
 import "math/rand"
 import "encoding/json"
+import "github.com/go-xorm/xorm"
 import "github.com/garyburd/redigo/redis"
 
 type scheduleConfig struct {
-    SchedulerRedisHost    string         `json:"scheduler_redis_host"`
-    SchedulerRedisPasswd  string         `json:"scheduler_redis_passwd"`
-    SchedulerDBConnStr    string         `json:"scheduler_db_connstr"`
+    Enable                bool           `json:"enable"`
+    LoadScheduleDB        string         `json:"load_from_database"`
+    GlobalLockRedis       string         `json:"global_lock_redis"`
 }
-
-type VascSchedule func (scheduleKey string) error
 
 type ScheduleInfo struct {
     Key         string                   `json:"key"`  
-    Routine     VascSchedule             `json:"-"`
+    Routine     VascRoutine              `json:"-"`
     Type        uint64                   `json:"type"`
     Timestamp   int64                    `json:"timestamp"`  
     Interval    int64                    `json:"interval"`
@@ -34,14 +33,30 @@ type ScheduleInfo struct {
 
 type VascScheduler struct {
     ProjectName        string
-    RedisHost          string
-    RedisPasswd        string
-    RedisConn         *VascRedis
+    RedisConn         *redis.Pool
     RedisPrefix        string
     DBConnStr          string
+    DBConn            *xorm.Engine
     Runnable           bool
+    FuncMap            map[string]VascRoutine
     CycleScheduleList  map[string]*ScheduleInfo
     ScheduleWaitGroup  sync.WaitGroup
+}
+
+type VascSchedulerDB struct {
+    ScheduleID        int64     `xorm:"BIGINT PK AUTOINCR 'SCHEDULE_ID'"`  
+    ScheduleKey       string    `xorm:"VARCHAR(128) NOT NULL INDEX(INDEX1) 'SCHEDULE_KEY'"`
+    ScheduleFuncName  string    `xorm:"VARCHAR(128) NOT NULL 'SCHEDULE_FUNC_NAME'"`
+    ScheduleType      uint64    `xorm:"BIGINT 'SCHEDULE_TYPE'"`
+    ScheduleTimestamp int64     `xorm:"BIGINT 'SCHEDULE_TIMESTAMP'"`
+    ScheduleInterval  int64     `xorm:"BIGINT 'SCHEDULE_INTERVAL'"`
+    ScheduleScope     int64     `xorm:"BIGINT 'SCHEDULE_SCOPE'"`
+    CreatedTime       time.Time `xorm:"CREATED 'SCHEDULE_CREATED_TIME'"`
+    UpdatedTime       time.Time `xorm:"UPDATED 'SCHEDULE_UPDATED_TIME'"`
+}
+
+func (this *VascSchedulerDB) TableName() string {
+    return "VASC_SCHEDULER"
 }
 
 const VASC_SCHEDULE_FIXED      = 1
@@ -55,24 +70,29 @@ const VASC_SCHEDULE_SCOPE_GLOBAL = 3
 
 func (this *VascScheduler) LoadConfig(config *scheduleConfig, projectName string) error {
     this.ProjectName = projectName
-    this.RedisHost   = config.SchedulerRedisHost
-    this.RedisPasswd = config.SchedulerRedisPasswd
-    this.DBConnStr   = config.SchedulerDBConnStr
-    this.RedisPrefix = fmt.Sprintf("%s:SCHEDULE:", projectName)
-    
-    return this.InitScheduler()
-}
 
-func (this * VascScheduler) InitScheduler() error {   
-    this.RedisConn = new(VascRedis)
-    this.RedisConn.LoadConfig(&redisConfig{RedisHost: this.RedisHost, RedisPasswd: this.RedisPasswd}, this.ProjectName)
+    if GetVascInstance().BitCode & VASC_REDIS!=0 && config.GlobalLockRedis!=""{
+        redis := GetVascInstance().Redis.Get(config.GlobalLockRedis)
+        if redis==nil {
+            return errors.New("cannot get redis instance for global lock")
+        }
+        this.RedisConn = redis
+    }
+    if GetVascInstance().BitCode & VASC_DB!=0 && config.LoadScheduleDB!="" {
+        dbEngine, err := GetVascInstance().DB.GetEngine(config.LoadScheduleDB)
+        if dbEngine!=nil && err!=nil {
+            return err
+        }
+        this.DBConn  = dbEngine
+    }
+    this.RedisPrefix = fmt.Sprintf("VASC:%s:SCHEDULE:", projectName)
+    
     return nil
 }
 
 func (this * VascScheduler) Close() {
     this.Runnable = false
     this.ScheduleWaitGroup.Wait()
-    this.RedisConn.Close()
 }
 
 func (this * VascScheduler) smartSleep(sleepTime int64) bool {
@@ -116,7 +136,7 @@ func (this *VascScheduler) traverseCycleScheduleList () error {
         }
         if scheduleItem.Scope==VASC_SCHEDULE_SCOPE_NATIVE {
             this.ScheduleWaitGroup.Add(1)
-        	go func (key string, scheduleFunc VascSchedule) {
+        	go func (key string, scheduleFunc VascRoutine) {
         	    info := this.CycleScheduleList[key]
         	    if info.LastRunTime + info.Interval <= now {
                     scheduleFunc(key)
@@ -126,10 +146,10 @@ func (this *VascScheduler) traverseCycleScheduleList () error {
         	}(scheduleItem.Key, scheduleItem.Routine)
         } else if scheduleItem.Scope==VASC_SCHEDULE_SCOPE_GLOBAL {
             this.ScheduleWaitGroup.Add(1)
-            go func (key string, scheduleFunc VascSchedule, interval int64) {
-                lockValue := this.GetGlobalToken(key, interval)
+            go func (key string, scheduleFunc VascRoutine, interval int64) {
+                lockValue, _ := this.GetGlobalToken(key, interval)
                 if lockValue!="" {
-                    info := this.GetGlobalScheduleStatus(key)
+                    info, _ := this.GetGlobalScheduleStatus(key)
                     if info==nil || info.LastRunTime + info.Interval <= now {
                         scheduleFunc(key)
                         if info==nil {
@@ -150,19 +170,34 @@ func (this *VascScheduler) traverseCycleScheduleList () error {
     return nil
 }
 
-func (this *VascScheduler) LoadSchedule(scheduleList []ScheduleInfo) error {
-    if scheduleList==nil {
+func (this *VascScheduler) LoadSchedule(app *VascApplication) error {
+    if app==nil {
         return nil
     }
-    
+    this.FuncMap  = app.FuncMap
     this.Runnable = false
-    this.ScheduleWaitGroup.Wait()
-    this.CycleScheduleList  = make(map[string]*ScheduleInfo)
-    
+    this.ScheduleWaitGroup.Wait()    
     this.Runnable = true
     
-    for _, info := range scheduleList {
+    this.CycleScheduleList  = make(map[string]*ScheduleInfo)
+    for _, info := range app.ScheduleList {
+        if info.Scope==VASC_SCHEDULE_SCOPE_GLOBAL && this.RedisConn==nil {
+            continue
+        }
         this.setSchedule(info.Key, info.Routine, info.Type, info.Interval, info.Timestamp, info.Scope)
+    }
+    
+    if this.DBConn!=nil {
+        dbScheduleList, err := this.LoadScheduleFromDB()
+        if err!=nil {
+            return err
+        }
+        for _, info := range dbScheduleList {
+            if info.Scope==VASC_SCHEDULE_SCOPE_GLOBAL && this.RedisConn==nil {
+                continue
+            }
+            this.setSchedule(info.Key, info.Routine, info.Type, info.Interval, info.Timestamp, info.Scope)
+        }
     }
     
     this.ScheduleWaitGroup.Add(1)
@@ -170,23 +205,44 @@ func (this *VascScheduler) LoadSchedule(scheduleList []ScheduleInfo) error {
     return nil
 }
 
-func (this *VascScheduler) StartSerialSchedule(scheduleKey string, schedule VascSchedule, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
+func (this *VascScheduler) LoadScheduleFromDB() ([]ScheduleInfo, error) {
+    this.DBConn.Sync2(new(VascSchedulerDB))
+    
+    result := make([]VascSchedulerDB, 0)
+    err := this.DBConn.Find(&result)
+    if err!=nil {
+        return nil, err
+    }
+    
+    scheduleInfo := make([]ScheduleInfo, len(result), len(result))
+    for index, value := range result {
+        scheduleInfo[index].Key         = value.ScheduleKey       
+        scheduleInfo[index].Routine     = this.FuncMap[value.ScheduleFuncName]
+        scheduleInfo[index].Type        = value.ScheduleType      
+        scheduleInfo[index].Timestamp   = value.ScheduleTimestamp 
+        scheduleInfo[index].Interval    = value.ScheduleInterval  
+        scheduleInfo[index].Scope       = value.ScheduleScope     
+    }
+    
+    return scheduleInfo, nil
+}
+
+func (this *VascScheduler) StartSerialSchedule(scheduleKey string, schedule VascRoutine, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
     this.ScheduleWaitGroup.Add(1)
     go func(key string, interval int64) {
         for ;this.Runnable; {
             if scope==VASC_SCHEDULE_SCOPE_NATIVE {
                 schedule(key)
-                time.Sleep(time.Second * time.Duration(interval))
+                this.smartSleep(interval)
             } else if scope==VASC_SCHEDULE_SCOPE_GLOBAL {
-                lockValue := this.GetGlobalToken(key, interval)
+                lockValue, _ := this.GetGlobalToken(key, interval)
                 if lockValue!="" {
                     schedule(key)
-                    time.Sleep(time.Second * time.Duration(interval))
-                    
+                    this.smartSleep(interval)
                     this.ReleaseToken(key, lockValue)
                 } else {
                     fmt.Printf("%s has been locked\n", key)
-                    time.Sleep(time.Second * time.Duration(interval))
+                    this.smartSleep(interval)
                 }
             }
         }
@@ -196,7 +252,7 @@ func (this *VascScheduler) StartSerialSchedule(scheduleKey string, schedule Vasc
     return nil
 }
 
-func (this *VascScheduler) StartOverlappedSchedule(scheduleKey string, schedule VascSchedule, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
+func (this *VascScheduler) StartOverlappedSchedule(scheduleKey string, schedule VascRoutine, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
     if this.CycleScheduleList[scheduleKey]!=nil {
         return errors.New("Duplicated key")
     }
@@ -212,7 +268,7 @@ func (this *VascScheduler) StartOverlappedSchedule(scheduleKey string, schedule 
     return nil
 }
 
-func (this *VascScheduler) StartFixedSchedule(scheduleKey string, schedule VascSchedule, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
+func (this *VascScheduler) StartFixedSchedule(scheduleKey string, schedule VascRoutine, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
     if interval==0 && time.Now().Unix() > timestamp {
         return errors.New("invalid schedule: timestamp expired with zero-interval")
     }
@@ -251,7 +307,7 @@ func (this *VascScheduler) StartFixedSchedule(scheduleKey string, schedule VascS
             } else if scope==VASC_SCHEDULE_SCOPE_GLOBAL {
                 if  now >= timeline {
                     if over==0 {
-                        lockValue := this.GetGlobalToken(scheduleKey, interval)
+                        lockValue, _ := this.GetGlobalToken(scheduleKey, interval)
                         if lockValue!="" {
                             schedule(scheduleKey)
                             if this.smartSleep(interval)==false {
@@ -288,7 +344,7 @@ func (this *VascScheduler) StartFixedSchedule(scheduleKey string, schedule VascS
     return nil
 }
 
-func (this *VascScheduler) setSchedule(scheduleKey string, schedule VascSchedule, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
+func (this *VascScheduler) setSchedule(scheduleKey string, schedule VascRoutine, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
     switch scheduleType {
         case VASC_SCHEDULE_OVERLAPPED:
             return this.StartOverlappedSchedule(scheduleKey, schedule, scheduleType, interval, timestamp, scope)
@@ -302,11 +358,17 @@ func (this *VascScheduler) setSchedule(scheduleKey string, schedule VascSchedule
     return nil
 }
 
-func (this *VascScheduler) GetGlobalToken(key string, life int64) string {
-    lockValue := fmt.Sprintf("%d:%d", time.Now().UnixNano(), rand.Int())
-    //fmt.Printf("trylock:[%s][%s]", key, lockValue)
+func (this *VascScheduler) GetGlobalToken(key string, life int64) (string, error) {
+    if this.RedisConn==nil {
+        return "", errors.New("cannot find redis configuration for getting global token")
+    }
     
+    lockValue := fmt.Sprintf("%d:%d", time.Now().UnixNano(), rand.Int())
     redisConn := this.RedisConn.Get()
+    if redisConn==nil {
+        return "", errors.New("cannot get redis connection from pool")
+    }
+    
     defer redisConn.Close()
     
     //In case of run-once schedule
@@ -317,22 +379,28 @@ func (this *VascScheduler) GetGlobalToken(key string, life int64) string {
     
 	if err==redis.ErrNil {
 	    //fmt.Sprintf("lockfailed:[%s][%v]\n", key, err)
-		return ""
+		return "", err
 	}
 	
 	if err!=nil {
 	    //fmt.Printf("lockerror:[%s][%v]\n", key, err)
-		return ""
+		return "", err
 	}
 	
 	//fmt.Printf("locksuccess:[%s][%s]\n", key, lockValue)
-	return lockValue
+	return lockValue, nil
 }
 
-func (this *VascScheduler) ReleaseToken(key string, lockValue string) {
-    //fmt.Printf("release:[%s][%s]\n", key, lockValue)
+func (this *VascScheduler) ReleaseToken(key string, lockValue string) error {
+    if this.RedisConn==nil {
+        return errors.New("cannot find redis configuration for releasing global token")
+    }
     
     redisConn := this.RedisConn.Get()
+    if redisConn==nil {
+        return nil
+    }
+    
     defer redisConn.Close()
     
     releaseLockScript := redis.NewScript(1, `
@@ -345,15 +413,24 @@ func (this *VascScheduler) ReleaseToken(key string, lockValue string) {
     `)
     
     releaseLockScript.Do(redisConn, this.RedisPrefix + "token:" + key, lockValue)
+    return nil
 }
 
 func (this *VascScheduler) SetGlobalScheduleStatus(key string, info *ScheduleInfo, life int64) error {
+    if this.RedisConn==nil {
+        return errors.New("cannot find redis configuration for setting global schedule status")
+    }
+    
     scheduleInfo, err := json.Marshal(*info)
     if err!=nil {
         return err
     }
     
     redisConn := this.RedisConn.Get()
+    if redisConn==nil {
+        return errors.New("cannot get redis connection from pool")
+    }
+    
     defer redisConn.Close()
     
     aKey := this.RedisPrefix + "info:" + key
@@ -361,22 +438,29 @@ func (this *VascScheduler) SetGlobalScheduleStatus(key string, info *ScheduleInf
     return err
 }
 
-func (this *VascScheduler) GetGlobalScheduleStatus(key string) *ScheduleInfo {
-    aKey := this.RedisPrefix + "info:" + key
-        
+func (this *VascScheduler) GetGlobalScheduleStatus(key string) (*ScheduleInfo, error) {
+    if this.RedisConn==nil {
+        return nil, errors.New("cannot find redis configuration for setting global schedule status")
+    }
+    
+    aKey := this.RedisPrefix + "info:" + key   
     redisConn := this.RedisConn.Get()
+    if redisConn==nil {
+        return nil, errors.New("cannot get redis connection for setting global schedule status")
+    }
+    
     defer redisConn.Close()
     
     scheduleInfo, err := redis.String(redisConn.Do("GET", aKey))
     if err!=nil {
-        return nil
+        return nil, err
     }
     
     var jsonResult ScheduleInfo
     err = json.Unmarshal([]byte(scheduleInfo), &jsonResult)
     if err != nil {
-        return nil
+        return nil, err
     }
     
-    return &jsonResult
+    return &jsonResult, nil
 }

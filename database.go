@@ -8,7 +8,7 @@ import (
     "github.com/go-xorm/xorm"
 )
 
-type databaseConfig struct {
+type dbConfigItem struct {
     Key               string         `json:"key"`
     DatabaseConnstr   string         `json:"db_connstr"`
     Location          string         `json:"location"`
@@ -16,45 +16,51 @@ type databaseConfig struct {
     MaxOpenConns      int            `json:"max_open_conns"`
 }
 
+type databaseConfig struct {
+    Enable             bool          `json:"enable"`
+    InstanceList     []dbConfigItem  `json:"instance_list"`
+}
+
 type VascDataBase struct {
     Engine map[string]*xorm.Engine
 }
 
-func (this *VascDataBase) LoadConfig(config []databaseConfig, projectName string) error {
-    dbNum := len(config)
+func (this *VascDataBase) LoadConfig(config *databaseConfig, projectName string) error {
+    dbNum := len(config.InstanceList)
     if dbNum < 1 {
         return errors.New("empty database config")
     }
     
     this.Engine = make(map[string]*xorm.Engine)
     
-    for index, value := range config {
-        if config[index].DatabaseConnstr=="" {
+    for index, value := range config.InstanceList {
+        if config.InstanceList[index].DatabaseConnstr=="" {
             return errors.New(fmt.Sprintf("empty database connection string for index:%d, total:%d", index, dbNum))
         }
         
-        conn, err := xorm.NewEngine("mysql", config[index].DatabaseConnstr)
+        conn, err := xorm.NewEngine("mysql", config.InstanceList[index].DatabaseConnstr)
         if err!=nil {
-            return errors.New("cannot connect to database: " + config[index].DatabaseConnstr)
+            return errors.New("cannot connect to database: " + config.InstanceList[index].DatabaseConnstr)
         }
+        
         this.Engine[value.Key] = conn
         
         this.Engine[value.Key].ShowSQL(false)
         
-        if config[index].MaxIdelConns > 0 {
-            this.Engine[value.Key].SetMaxIdleConns(config[index].MaxIdelConns)
+        if config.InstanceList[index].MaxIdelConns > 0 {
+            this.Engine[value.Key].SetMaxIdleConns(config.InstanceList[index].MaxIdelConns)
         } else {
             this.Engine[value.Key].SetMaxIdleConns(10)
         }
         
-        if config[index].MaxOpenConns > 0 {
-            this.Engine[value.Key].SetMaxOpenConns(config[index].MaxOpenConns)
+        if config.InstanceList[index].MaxOpenConns > 0 {
+            this.Engine[value.Key].SetMaxOpenConns(config.InstanceList[index].MaxOpenConns)
         } else {
             this.Engine[value.Key].SetMaxOpenConns(100)
         }
         
-        if config[index].Location!="" {
-            this.Engine[value.Key].TZLocation, _ = time.LoadLocation(config[index].Location)
+        if config.InstanceList[index].Location!="" {
+            this.Engine[value.Key].TZLocation, _ = time.LoadLocation(config.InstanceList[index].Location)
         } else {
             this.Engine[value.Key].TZLocation, _ = time.LoadLocation("Asia/Shanghai")
         }
@@ -64,6 +70,12 @@ func (this *VascDataBase) LoadConfig(config []databaseConfig, projectName string
 }
 
 func (this *VascDataBase) InitDatabase() error {
+    for _, value := range this.Engine {
+        err := value.Ping()
+        if err!=nil {
+            return err
+        }
+    }
     return nil    
 }
 
