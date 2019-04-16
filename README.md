@@ -1,5 +1,5 @@
 # vasc是什么
-vasc是一个基于Go语言（golang）的web服务框架。vasc包括一套用于搭建web服务的数据结构和一个用于对外提供web服务的服务器。
+vasc是一个基于Go语言（golang）的web服务框架。vasc包括一套用于搭建web服务器的模块和一组用于数据库、Redis、本地缓存以及全局任务调度的框架。
 # 如何获取vasc：
 vasc的代码位于github.com/marxn/vasc
 开发者在搭建完毕golang开发环境后，使用
