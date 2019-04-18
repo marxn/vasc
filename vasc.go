@@ -20,15 +20,15 @@ const VASC_SCHEDULER = 0x01 << 5
 const VASC_TASK      = 0x01 << 6
 
 type VascService struct {
-    Cache      *CacheManager
-    WebServer  *VascWebServer
-    Log        *VascLog
-    DB         *VascDataBase
-    Redis      *VascRedis
-    Scheduler  *VascScheduler
-    Task       *VascTask
-    Reloader    func ()
-    BitCode    uint64
+    Cache         *CacheManager
+    WebServer     *VascWebServer
+    Log           *VascLog
+    DB            *VascDataBase
+    Redis         *VascRedis
+    Scheduler     *VascScheduler
+    Task          *VascTask
+    SignalHandler  func ()
+    BitCode        uint64
 }
 
 type VascConfig struct {
@@ -45,7 +45,7 @@ type VascApplication struct {
     TaskList       []TaskInfo
     ScheduleList   []ScheduleInfo
     FuncMap          map[string]VascRoutine
-    Reloader         func () error
+    SignalHandler    func ()
 }
 
 type VascRoutine func (interface{}) error
@@ -70,8 +70,10 @@ func loadModule(projectName string, logLevel string, configFilePath string, app 
     vascInstance.Log = new(VascLog)
     err = vascInstance.Log.LoadConfig(projectName)
     if err!=nil {
-    
+        return err
     }
+    
+    vascInstance.SignalHandler = app.SignalHandler
     
     switch logLevel {
     	case "debug":
@@ -139,7 +141,7 @@ func loadModule(projectName string, logLevel string, configFilePath string, app 
         if err!=nil {
             return err
         }
-    
+        
         vascInstance.BitCode |= VASC_SCHEDULER
     }
 
@@ -168,7 +170,7 @@ func initModule(projectName string, logLevel string, configFilePath string, app 
 func InitInstance(app *VascApplication) error {
     project    := flag.String("n", "",      "project name")
     configfile := flag.String("c", "",      "vasc config file path")
-	pidfile    := flag.String("p", "",      "pid filename")
+	pidfile    := flag.String("p", "",      "pid file path")
 	mode       := flag.String("m", "normal","running mode(normal/bootstrap)")
 	logLevel   := flag.String("l", "debug", "log level(debug, info, warning, error)")
     
@@ -188,7 +190,7 @@ func InitInstance(app *VascApplication) error {
     
     //Install signal receiver
     vascSignalChan = make(chan os.Signal)
-    signal.Notify(vascSignalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGUSR1, syscall.SIGUSR2)
+    signal.Notify(vascSignalChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGUSR1, syscall.SIGUSR2)
     
     //Initliaze object
     vascInstance = new(VascService)
@@ -244,8 +246,9 @@ func Wait() {
     for {
         s := <- vascSignalChan
         switch s {
+            case syscall.SIGHUP:
             case syscall.SIGUSR2:
-                vascInstance.Reloader()
+                vascInstance.SignalHandler()
             default:
                 return
         }

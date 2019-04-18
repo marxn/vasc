@@ -40,7 +40,7 @@ func (this *VascLog) LoadConfig(projectName string) error {
     
     logger, err := syslog.New(syslog.LOG_DEBUG|syslog.LOG_LOCAL6, this.ProjectName)
 	if err != nil {
-		return errors.New("Could not open syslog")
+		return errors.New("cannot open syslog")
 	}
 	
 	this.Logger = logger
@@ -59,13 +59,13 @@ func (this *VascLog) ErrorLog(format string, v ...interface{}) {
 }
 
 func (this *VascLog) InfoLog(format string, v ...interface{}) {
-	if this.LogLevel <= LOG_WARN {
+	if this.LogLevel <= LOG_INFO {
 		this.vascLogWrapper(LOG_INFO, fmt.Sprintf(format, v...))
 	}
 }
 
 func (this *VascLog) WarnLog(format string, v ...interface{}) {
-	if this.LogLevel <= LOG_INFO {
+	if this.LogLevel <= LOG_WARN {
 		this.vascLogWrapper(LOG_WARN, fmt.Sprintf(format, v...))
 	}
 }
