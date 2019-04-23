@@ -1,4 +1,4 @@
-package vasc
+package database
 
 import (
     "fmt"
@@ -6,26 +6,14 @@ import (
     "errors"
     _ "github.com/go-sql-driver/mysql"
     "github.com/go-xorm/xorm"
+    "github.com/marxn/vasc/global" 
 )
-
-type dbConfigItem struct {
-    Key               string         `json:"key"`
-    DatabaseConnstr   string         `json:"db_connstr"`
-    Location          string         `json:"location"`
-    MaxIdelConns      int            `json:"max_idle_conns"`
-    MaxOpenConns      int            `json:"max_open_conns"`
-}
-
-type databaseConfig struct {
-    Enable             bool          `json:"enable"`
-    InstanceList     []dbConfigItem  `json:"instance_list"`
-}
 
 type VascDataBase struct {
     Engine map[string]*xorm.Engine
 }
 
-func (this *VascDataBase) LoadConfig(config *databaseConfig, projectName string) error {
+func (this *VascDataBase) LoadConfig(config *global.DatabaseConfig, projectName string) error {
     dbNum := len(config.InstanceList)
     if dbNum < 1 {
         return errors.New("empty database config")

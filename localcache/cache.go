@@ -4,7 +4,7 @@
  * Author: Kevin Wang
  */
 
-package vasc
+package localcache
 
 import "os"
 import "fmt"
@@ -15,6 +15,8 @@ import "encoding/hex"
 import "crypto/md5"
 import "math/rand"
 import "github.com/garyburd/redigo/redis"
+import "github.com/marxn/vasc/global" 
+import vredis "github.com/marxn/vasc/redis" 
 
 const mod_factor1 = 13
 const mod_factor2 = 101
@@ -27,13 +29,8 @@ type CacheManager struct {
     Expiration  map[string]int64
 }
 
-type cacheConfigFile struct {
-    Enable            bool           `json:"enable"`
-    CacheRootPath     string         `json:"cache_rootpath"`
-    CacheSourceRedis  string         `json:"cache_source_redis"`
-}
 
-func (this * CacheManager) LoadConfig(config *cacheConfigFile, projectName string) error {
+func (this * CacheManager) LoadConfig(config *global.CacheConfigFile, redisPoolList *vredis.VascRedis, projectName string) error {
     _, err := os.Stat(config.CacheRootPath)
     if err != nil {
         return errors.New("Cache directory does not exist")
@@ -41,8 +38,8 @@ func (this * CacheManager) LoadConfig(config *cacheConfigFile, projectName strin
     
     rand.Seed(time.Now().UnixNano())
     this.ProjectName = projectName
-    if GetVascInstance().BitCode & VASC_REDIS!=0 && config.CacheSourceRedis!=""{
-        redis := GetVascInstance().Redis.Get(config.CacheSourceRedis)
+    if redisPoolList!=nil && config.CacheSourceRedis!=""{
+        redis := redisPoolList.Get(config.CacheSourceRedis)
         if redis==nil {
             return errors.New("cannot get redis instance for cache sync")
         }

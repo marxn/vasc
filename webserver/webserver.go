@@ -1,17 +1,10 @@
-package vasc
+package webserver
 
 import "time"
 import "net/http"
 import "errors"
 import "github.com/gin-gonic/gin"
-
-type webServerConfig struct {
-    Enable            bool           `json:"enable"`
-    ListenAddr        string         `json:"listen_address"`
-    ListenRetry       int            `json:"listen_retry"`
-    ReadTimeout       int            `json:"read_timeout"`
-    WriteTimeout      int            `json:"write_timeout"`
-}
+import "github.com/marxn/vasc/global" 
 
 type VascWebServer struct {
     ProjectName     string
@@ -24,17 +17,7 @@ type VascWebServer struct {
     Runnable        bool
 }
 
-type VascRoute struct {
-    Method         string             `json:"method"`
-    Route          string             `json:"route"`
-    HandlerName    string             `json:"handler_name"`
-    RouteHandler   gin.HandlerFunc    `json:"-"`
-    MiddlewareName string             `json:"middleware_name"`
-    Middleware     gin.HandlerFunc    `json:"-"`
-    LocalFilePath  string             `json:"local_file_path"`
-}
-
-func (this *VascWebServer) LoadConfig(config *webServerConfig, projectName string) error {
+func (this *VascWebServer) LoadConfig(config *global.WebServerConfig, projectName string) error {
     this.ProjectName = projectName
     
     gin.SetMode(gin.ReleaseMode)
@@ -91,7 +74,7 @@ func (this *VascWebServer) Start() error {
 	return nil
 }
 
-func (this *VascWebServer) LoadModules(modules []VascRoute) error {
+func (this *VascWebServer) LoadModules(modules []global.VascRoute) error {
     if modules==nil {
         return nil
     }

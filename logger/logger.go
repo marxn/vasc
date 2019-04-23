@@ -1,4 +1,4 @@
-package vasc
+package logger
 
 import (
     "fmt"
@@ -6,18 +6,18 @@ import (
     "log/syslog"
 )
 
-type VascLog struct {
-    ProjectName string
-    LogLevel    int
-    Logger     *syslog.Writer
-}
-
 const (
 	LOG_DEBUG = 0
 	LOG_INFO  = 1
 	LOG_WARN  = 2
 	LOG_ERROR = 3
 )
+
+type VascLog struct {
+    ProjectName string
+    LogLevel    int
+    Logger     *syslog.Writer
+}
 
 func (this *VascLog) vascLogWrapper(level int, s string) {
 	switch level {
@@ -78,20 +78,4 @@ func (this *VascLog) DebugLog(format string, v ...interface{}) {
 
 func (this *VascLog) SetLogLevel(level int) {
     this.LogLevel = level
-}
-
-func ErrorLog(format string, v ...interface{}) {
-    GetVascInstance().Log.ErrorLog(format, v...)
-}
-
-func InfoLog(format string, v ...interface{}) {
-    GetVascInstance().Log.InfoLog(format, v...)
-}
-
-func WarnLog(format string, v ...interface{}) {
-    GetVascInstance().Log.WarnLog(format, v...)
-}
-
-func DebugLog(format string, v ...interface{}) {
-    GetVascInstance().Log.DebugLog(format, v...)
 }

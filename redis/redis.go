@@ -1,30 +1,17 @@
-package vasc
+package redis
 
 //import "fmt"
 import "time"
 //import "runtime/debug"
 import "github.com/garyburd/redigo/redis"
-
-type redisInstanceConfig struct {
-    Key            string               `json:"key"`
-    RedisHost      string               `json:"redis_host"`
-    RedisPasswd    string               `json:"redis_passwd"`
-    MaxIdle        int                  `json:"max_idle"`
-    IdleTimeout    int                  `json:"idle_timeout"`
-    Wait           bool                 `json:"wait"`
-}
-
-type redisConfig struct {
-    Enable         bool                 `json:"enable"`
-    InstanceList []redisInstanceConfig  `json:"instance_list"`
-}
+import "github.com/marxn/vasc/global" 
 
 type VascRedis struct {
     RedisPool    map[string]*redis.Pool 
     Runnable     bool
 }
 
-func (this *VascRedis) LoadConfig(config *redisConfig, projectName string) error {
+func (this *VascRedis) LoadConfig(config *global.RedisConfig, projectName string) error {
     this.RedisPool = make(map[string]*redis.Pool)
     for _, value := range config.InstanceList {
         this.RedisPool[value.Key] = &redis.Pool{
