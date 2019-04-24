@@ -29,7 +29,7 @@ type VascApplication struct {
     WebserverRoute   []VascRoute                   `json:"webserver_route"`
     TaskList         []TaskInfo                    `json:"task_list"`
     ScheduleList     []ScheduleInfo                `json:"schedule_list"`
-    FuncMap            map[string]VascRoutine      `json:"-"`
+    FuncMap            map[string]interface{}      `json:"-"`
 }
 
 type TaskConfig struct {

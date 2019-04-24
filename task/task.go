@@ -94,7 +94,7 @@ func (this * VascTask) StartTaskHandling(taskInfo *global.TaskInfo) {
 func (this * VascTask) launchTask(taskList []global.TaskInfo) error {
     for _, info := range taskList {
         if info.Handler==nil {
-            info.Handler = this.Application.FuncMap[info.HandlerName]
+            info.Handler = global.VascRoutine(this.Application.FuncMap[info.HandlerName].(global.VascRoutine))
         }
         if this.TaskList[info.Key]!=nil || info.Handler==nil {
             continue
@@ -179,7 +179,7 @@ func (this * VascTask) LoadTaskFromDB() ([]global.TaskInfo, error) {
     taskInfo := make([]global.TaskInfo, len(result), len(result))
     for index, value := range result {
         taskInfo[index].Key         = value.TaskKey       
-        taskInfo[index].Handler     = this.Application.FuncMap[value.TaskFuncName]
+        taskInfo[index].Handler     = global.VascRoutine(this.Application.FuncMap[value.TaskFuncName].(global.VascRoutine))
         taskInfo[index].Scope       = value.TaskScope     
         taskInfo[index].QueueSize   = value.TaskQueueSize
         taskInfo[index].HandlerNum  = value.TaskHandlerNum

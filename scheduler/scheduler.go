@@ -166,7 +166,7 @@ func (this *VascScheduler) loadSchedule() error {
             continue
         }
         if info.Routine==nil {
-            info.Routine = this.Application.FuncMap[info.HandlerName]
+            info.Routine = global.VascRoutine(this.Application.FuncMap[info.HandlerName].(global.VascRoutine))
         }
         this.setSchedule(info.Key, info.Routine, info.Type, info.Interval, info.Timestamp, info.Scope)
     }
@@ -182,7 +182,7 @@ func (this *VascScheduler) loadSchedule() error {
                 continue
             }
             if info.Routine==nil {
-                info.Routine = this.Application.FuncMap[info.HandlerName]
+                info.Routine = global.VascRoutine(this.Application.FuncMap[info.HandlerName].(global.VascRoutine))
             }
             this.setSchedule(info.Key, info.Routine, info.Type, info.Interval, info.Timestamp, info.Scope)
         }
@@ -206,7 +206,7 @@ func (this *VascScheduler) LoadScheduleFromDB() ([]global.ScheduleInfo, error) {
     scheduleInfo := make([]global.ScheduleInfo, len(result), len(result))
     for index, value := range result {
         scheduleInfo[index].Key         = value.ScheduleKey       
-        scheduleInfo[index].Routine     = this.Application.FuncMap[value.ScheduleFuncName]
+        scheduleInfo[index].Routine     = global.VascRoutine(this.Application.FuncMap[value.ScheduleFuncName].(global.VascRoutine))
         scheduleInfo[index].Type        = value.ScheduleType      
         scheduleInfo[index].Timestamp   = value.ScheduleTimestamp 
         scheduleInfo[index].Interval    = value.ScheduleInterval  
