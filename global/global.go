@@ -30,6 +30,7 @@ type VascApplication struct {
     TaskList         []TaskInfo                    `json:"task_list"`
     ScheduleList     []ScheduleInfo                `json:"schedule_list"`
     FuncMap            map[string]interface{}      `json:"-"`
+    Configuration      string                      `json:"-"`
 }
 
 type TaskConfig struct {
