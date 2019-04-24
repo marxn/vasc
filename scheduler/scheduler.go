@@ -166,7 +166,10 @@ func (this *VascScheduler) loadSchedule() error {
             continue
         }
         if info.Routine==nil {
-            info.Routine = global.VascRoutine(this.Application.FuncMap[info.HandlerName].(global.VascRoutine))
+            handler := this.Application.FuncMap[info.HandlerName]
+            if handler!=nil {
+                info.Routine = global.VascRoutine(handler.(global.VascRoutine))
+            }
         }
         this.setSchedule(info.Key, info.Routine, info.Type, info.Interval, info.Timestamp, info.Scope)
     }
@@ -178,11 +181,13 @@ func (this *VascScheduler) loadSchedule() error {
         }
         for _, info := range dbScheduleList {
             if info.Scope==global.VASC_SCHEDULE_SCOPE_GLOBAL && this.RedisConn==nil {
-                //ErrorLog("cannot load global schedule [%s]", info.Key)
                 continue
             }
             if info.Routine==nil {
-                info.Routine = global.VascRoutine(this.Application.FuncMap[info.HandlerName].(global.VascRoutine))
+                handler := this.Application.FuncMap[info.HandlerName]
+                if handler!=nil {
+                    info.Routine = global.VascRoutine(handler.(global.VascRoutine))
+                }
             }
             this.setSchedule(info.Key, info.Routine, info.Type, info.Interval, info.Timestamp, info.Scope)
         }
@@ -205,8 +210,11 @@ func (this *VascScheduler) LoadScheduleFromDB() ([]global.ScheduleInfo, error) {
     
     scheduleInfo := make([]global.ScheduleInfo, len(result), len(result))
     for index, value := range result {
-        scheduleInfo[index].Key         = value.ScheduleKey       
-        scheduleInfo[index].Routine     = global.VascRoutine(this.Application.FuncMap[value.ScheduleFuncName].(global.VascRoutine))
+        scheduleInfo[index].Key         = value.ScheduleKey
+        handler := this.Application.FuncMap[value.ScheduleFuncName]
+        if handler!=nil {
+            scheduleInfo[index].Routine = global.VascRoutine(handler.(global.VascRoutine))
+        }
         scheduleInfo[index].Type        = value.ScheduleType      
         scheduleInfo[index].Timestamp   = value.ScheduleTimestamp 
         scheduleInfo[index].Interval    = value.ScheduleInterval  
