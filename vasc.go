@@ -35,13 +35,17 @@ var vascSignalChan   chan os.Signal
 var logLevel        *string
 
 func loadModule(projectName string, logLevel string, configFilePath string, app *global.VascApplication) error {
-    config, err := ioutil.ReadFile(configFilePath)
-    if err != nil{
-        return errors.New("Cannot find config file for project:" + projectName)
+    config := app.Configuration
+    if config=="" {
+        configFile, err := ioutil.ReadFile(configFilePath)
+        if err != nil{
+            return errors.New("Cannot read config file for project:" + projectName)
+        }
+        config = string(configFile)
     }
     
     var jsonResult global.VascConfig
-    err = json.Unmarshal([]byte(config), &jsonResult)
+    err := json.Unmarshal([]byte(config), &jsonResult)
     if err != nil {
         return errors.New("Cannot parse config file for project:" + projectName)
     }
@@ -158,7 +162,7 @@ func InitInstance(app *global.VascApplication) error {
         return errors.New("project name cannot be empty")
     }
     
-    if *configfile=="" {
+    if *configfile=="" && app.Configuration=="" {
         return errors.New("config file path cannot be empty")
     }
    
