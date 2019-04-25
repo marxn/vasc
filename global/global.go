@@ -1,11 +1,6 @@
 package global
 
-import "time"
-//import "sync"
-//import "net/http"
 import "github.com/gin-gonic/gin"
-//import "github.com/go-xorm/xorm"
-//import "github.com/garyburd/redigo/redis"
 
 type WebServerConfig struct {
     Enable            bool           `json:"enable"`
@@ -39,21 +34,6 @@ type TaskConfig struct {
     GlobalQueueRedis string         `json:"global_queue_redis"`
 }
 
-type VascTaskDB struct {
-    TaskID            int64     `xorm:"BIGINT PK AUTOINCR 'TASK_ID'"`  
-    TaskKey           string    `xorm:"VARCHAR(128) NOT NULL UNIQUE 'TASK_KEY'"`
-    TaskFuncName      string    `xorm:"VARCHAR(128) NOT NULL 'TASK_FUNC_NAME'"`
-    TaskHandlerNum    int64     `xorm:"BIGINT 'TASK_HANDLER_NUM'"`
-    TaskQueueSize     int64     `xorm:"BIGINT 'TASK_QUEUE_SIZE'"`
-    TaskScope         int64     `xorm:"BIGINT 'TASK_SCOPE'"`
-    CreatedTime       time.Time `xorm:"CREATED 'TASK_CREATED_TIME'"`
-    UpdatedTime       time.Time `xorm:"UPDATED 'TASK_UPDATED_TIME'"`
-}
-
-func (this *VascTaskDB) TableName() string {
-    return "VASC_TASK"
-}
-
 type TaskInfo struct {
     Key         string                          `json:"task_key"`
     Handler     func(content interface{}) error `json:"-"`
@@ -81,30 +61,6 @@ type ScheduleInfo struct {
     LastRunTime int64                    `json:"-"`
 }
 
-type VascSchedulerDB struct {
-    ScheduleID        int64     `xorm:"BIGINT PK AUTOINCR 'SCHEDULE_ID'"`  
-    ScheduleKey       string    `xorm:"VARCHAR(128) NOT NULL UNIQUE 'SCHEDULE_KEY'"`
-    ScheduleFuncName  string    `xorm:"VARCHAR(128) NOT NULL 'SCHEDULE_FUNC_NAME'"`
-    ScheduleType      uint64    `xorm:"BIGINT 'SCHEDULE_TYPE'"`
-    ScheduleTimestamp int64     `xorm:"BIGINT 'SCHEDULE_TIMESTAMP'"`
-    ScheduleInterval  int64     `xorm:"BIGINT 'SCHEDULE_INTERVAL'"`
-    ScheduleScope     int64     `xorm:"BIGINT 'SCHEDULE_SCOPE'"`
-    CreatedTime       time.Time `xorm:"CREATED 'SCHEDULE_CREATED_TIME'"`
-    UpdatedTime       time.Time `xorm:"UPDATED 'SCHEDULE_UPDATED_TIME'"`
-}
-
-func (this *VascSchedulerDB) TableName() string {
-    return "VASC_SCHEDULER"
-}
-
-const VASC_SCHEDULE_FIXED      = 1
-const VASC_SCHEDULE_OVERLAPPED = 2
-const VASC_SCHEDULE_SERIAL     = 3
-
-const VASC_SCHEDULE_SCOPE_NATIVE = 1
-const VASC_SCHEDULE_SCOPE_HOST   = 2
-const VASC_SCHEDULE_SCOPE_GLOBAL = 3
-
 type redisInstanceConfig struct {
     Key            string               `json:"key"`
     RedisHost      string               `json:"redis_host"`
@@ -124,14 +80,6 @@ type CacheConfigFile struct {
     CacheRootPath     string         `json:"cache_rootpath"`
     CacheSourceRedis  string         `json:"cache_source_redis"`
 }
-
-const VASC_NONE      = 0x0
-const VASC_WEBSERVER = 0x01 << 1
-const VASC_CACHE     = 0x01 << 2
-const VASC_DB        = 0x01 << 3
-const VASC_REDIS     = 0x01 << 4
-const VASC_SCHEDULER = 0x01 << 5
-const VASC_TASK      = 0x01 << 6
 
 type VascConfig struct {
     Database    *DatabaseConfig     `json:"database"`

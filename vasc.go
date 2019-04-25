@@ -19,6 +19,14 @@ import (
     "github.com/marxn/vasc/logger"
 )
 
+const VASC_NONE      = 0x0
+const VASC_WEBSERVER = 0x01 << 1
+const VASC_CACHE     = 0x01 << 2
+const VASC_DB        = 0x01 << 3
+const VASC_REDIS     = 0x01 << 4
+const VASC_SCHEDULER = 0x01 << 5
+const VASC_TASK      = 0x01 << 6
+
 type VascService struct {
     Cache         *localcache.CacheManager
     WebServer     *webserver.VascWebServer
@@ -76,7 +84,7 @@ func loadModule(projectName string, logLevel string, configFilePath string, app 
         if err!=nil {
             return err
         }
-        vascInstance.BitCode |= global.VASC_REDIS
+        vascInstance.BitCode |= VASC_REDIS
     }    
     
     if jsonResult.Database!=nil && jsonResult.Database.Enable && len(jsonResult.Database.InstanceList) > 0 {
@@ -85,7 +93,7 @@ func loadModule(projectName string, logLevel string, configFilePath string, app 
         if err!=nil {
             return err
         }
-        vascInstance.BitCode |= global.VASC_DB
+        vascInstance.BitCode |= VASC_DB
     }
     
     if jsonResult.LocalCache!=nil && jsonResult.LocalCache.Enable{
@@ -94,7 +102,7 @@ func loadModule(projectName string, logLevel string, configFilePath string, app 
         if err!=nil {
             return err
         }
-        vascInstance.BitCode |= global.VASC_CACHE
+        vascInstance.BitCode |= VASC_CACHE
     }
     
     if jsonResult.Webserver!=nil && jsonResult.Webserver.Enable {
@@ -109,7 +117,7 @@ func loadModule(projectName string, logLevel string, configFilePath string, app 
             return err
         }
         
-        vascInstance.BitCode |= global.VASC_WEBSERVER
+        vascInstance.BitCode |= VASC_WEBSERVER
     }
     
     if jsonResult.Scheduler!=nil && jsonResult.Scheduler.Enable {
@@ -124,7 +132,7 @@ func loadModule(projectName string, logLevel string, configFilePath string, app 
             return err
         }
         
-        vascInstance.BitCode |= global.VASC_SCHEDULER
+        vascInstance.BitCode |= VASC_SCHEDULER
     }
 
     if jsonResult.Task!=nil && jsonResult.Task.Enable {
@@ -139,7 +147,7 @@ func loadModule(projectName string, logLevel string, configFilePath string, app 
             return err
         }
         
-        vascInstance.BitCode |= global.VASC_TASK
+        vascInstance.BitCode |= VASC_TASK
     }    
     
     return nil
@@ -190,22 +198,22 @@ func StartService() error {
 }
 
 func Close() {
-    if(vascInstance.BitCode & global.VASC_TASK != 0) {
+    if(vascInstance.BitCode & VASC_TASK != 0) {
         vascInstance.Task.Close()
     }
-    if(vascInstance.BitCode & global.VASC_SCHEDULER != 0) {
+    if(vascInstance.BitCode & VASC_SCHEDULER != 0) {
         vascInstance.Scheduler.Close()
     }
-    if(vascInstance.BitCode & global.VASC_WEBSERVER != 0) {
+    if(vascInstance.BitCode & VASC_WEBSERVER != 0) {
         vascInstance.WebServer.Close()
     }
-    if(vascInstance.BitCode & global.VASC_CACHE != 0) {
+    if(vascInstance.BitCode & VASC_CACHE != 0) {
         vascInstance.Cache.Close()
     }
-    if(vascInstance.BitCode & global.VASC_DB != 0) {
+    if(vascInstance.BitCode & VASC_DB != 0) {
         vascInstance.DB.Close()
     }
-    if(vascInstance.BitCode & global.VASC_REDIS != 0) {
+    if(vascInstance.BitCode & VASC_REDIS != 0) {
         vascInstance.Redis.Close()
     }
     

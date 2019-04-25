@@ -26,6 +26,21 @@ type VascTask struct {
     taskWaitGroup      sync.WaitGroup
 }
 
+type VascTaskDB struct {
+    TaskID            int64     `xorm:"BIGINT PK AUTOINCR 'TASK_ID'"`  
+    TaskKey           string    `xorm:"VARCHAR(128) NOT NULL UNIQUE 'TASK_KEY'"`
+    TaskFuncName      string    `xorm:"VARCHAR(128) NOT NULL 'TASK_FUNC_NAME'"`
+    TaskHandlerNum    int64     `xorm:"BIGINT 'TASK_HANDLER_NUM'"`
+    TaskQueueSize     int64     `xorm:"BIGINT 'TASK_QUEUE_SIZE'"`
+    TaskScope         int64     `xorm:"BIGINT 'TASK_SCOPE'"`
+    CreatedTime       time.Time `xorm:"CREATED 'TASK_CREATED_TIME'"`
+    UpdatedTime       time.Time `xorm:"UPDATED 'TASK_UPDATED_TIME'"`
+}
+
+func (this *VascTaskDB) TableName() string {
+    return "VASC_TASK"
+}
+
 func (this *VascTask) LoadConfig(config *global.TaskConfig, redisPoolList *vredis.VascRedis, dbList *database.VascDataBase, projectName string) error {
     this.ProjectName = projectName
     
@@ -171,9 +186,9 @@ func (this * VascTask) LoadTaskFromDB() ([]global.TaskInfo, error) {
     if this.DBConn==nil {
         return nil, errors.New("cannot load task from database")
     }
-    this.DBConn.Sync2(new(global.VascTaskDB))
+    this.DBConn.Sync2(new(VascTaskDB))
     
-    result := make([]global.VascTaskDB, 0)
+    result := make([]VascTaskDB, 0)
     err := this.DBConn.Find(&result)
     if err!=nil {
         return nil, err
@@ -281,7 +296,7 @@ func (this *VascTask) ReloadTaskList() error {
     return nil
 }
 
-func (this *VascTask) CreateNewPersistentTask(task *global.VascTaskDB) error {
+func (this *VascTask) CreateNewPersistentTask(task *VascTaskDB) error {
     _, err := this.DBConn.Insert(task)
     return err
 }
