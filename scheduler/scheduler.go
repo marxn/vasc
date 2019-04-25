@@ -122,7 +122,7 @@ func (this *VascScheduler) traverseCycleScheduleList () error {
         }
         if scheduleItem.Scope==VASC_SCHEDULE_SCOPE_NATIVE {
             this.ScheduleWaitGroup.Add(1)
-        	go func (key string, scheduleFunc global.VascRoutine) {
+        	go func (key string, scheduleFunc func(interface{}) error) {
         	    info := this.CycleScheduleList[key]
         	    if info.LastRunTime + info.Interval <= now {
                     scheduleFunc(key)
@@ -132,7 +132,7 @@ func (this *VascScheduler) traverseCycleScheduleList () error {
         	}(scheduleItem.Key, scheduleItem.Routine)
         } else if scheduleItem.Scope==VASC_SCHEDULE_SCOPE_GLOBAL {
             this.ScheduleWaitGroup.Add(1)
-            go func (key string, scheduleFunc global.VascRoutine, interval int64) {
+            go func (key string, scheduleFunc func(interface{})error, interval int64) {
                 lockValue, _ := this.GetGlobalToken(key, interval)
                 if lockValue!="" {
                     info, _ := this.GetGlobalScheduleStatus(key)
@@ -156,13 +156,13 @@ func (this *VascScheduler) traverseCycleScheduleList () error {
     return nil
 }
 
-func (this * VascScheduler) LoadSchedule(app *global.VascApplication) error {
+func (this * VascScheduler) LoadSchedule(scheduleList []global.ScheduleInfo, app *global.VascApplication) error {
     if app==nil {
         return nil
     }
     this.Application = app
     this.needReload  = false
-    this.loadSchedule()
+    this.loadSchedule(scheduleList)
     
     go func() {
         for ;this.runnable; {
@@ -172,7 +172,7 @@ func (this * VascScheduler) LoadSchedule(app *global.VascApplication) error {
             }
             if this.needReload {
                 this.needReload = false
-                this.loadSchedule()
+                this.loadSchedule(scheduleList)
             }
             time.Sleep(time.Millisecond * 100)
         }
@@ -181,10 +181,10 @@ func (this * VascScheduler) LoadSchedule(app *global.VascApplication) error {
     return nil
 }
 
-func (this *VascScheduler) loadSchedule() error {
+func (this *VascScheduler) loadSchedule(scheduleList []global.ScheduleInfo) error {
     this.ScheduleWaitGroup.Add(1)
     this.CycleScheduleList  = make(map[string]*global.ScheduleInfo)
-    for _, info := range this.Application.ScheduleList {
+    for _, info := range scheduleList {
         if info.Scope==VASC_SCHEDULE_SCOPE_GLOBAL && this.RedisConn==nil {
             //ErrorLog("cannot load global schedule [%s]", info.Key)
             continue
@@ -192,7 +192,7 @@ func (this *VascScheduler) loadSchedule() error {
         if info.Routine==nil {
             handler := this.Application.FuncMap[info.HandlerName]
             if handler!=nil {
-                info.Routine = global.VascRoutine(handler.(global.VascRoutine))
+                info.Routine = func(interface{})error(handler.(func(interface{})error))
             }
         }
         this.setSchedule(info.Key, info.Routine, info.Type, info.Interval, info.Timestamp, info.Scope)
@@ -210,7 +210,7 @@ func (this *VascScheduler) loadSchedule() error {
             if info.Routine==nil {
                 handler := this.Application.FuncMap[info.HandlerName]
                 if handler!=nil {
-                    info.Routine = global.VascRoutine(handler.(global.VascRoutine))
+                    info.Routine = func(interface{})error(handler.(func(interface{})error))
                 }
             }
             this.setSchedule(info.Key, info.Routine, info.Type, info.Interval, info.Timestamp, info.Scope)
@@ -237,7 +237,7 @@ func (this *VascScheduler) LoadScheduleFromDB() ([]global.ScheduleInfo, error) {
         scheduleInfo[index].Key         = value.ScheduleKey
         handler := this.Application.FuncMap[value.ScheduleFuncName]
         if handler!=nil {
-            scheduleInfo[index].Routine = global.VascRoutine(handler.(global.VascRoutine))
+            scheduleInfo[index].Routine = func(interface{})error(handler.(func(interface{})error))
         }
         scheduleInfo[index].Type        = value.ScheduleType      
         scheduleInfo[index].Timestamp   = value.ScheduleTimestamp 
@@ -248,7 +248,7 @@ func (this *VascScheduler) LoadScheduleFromDB() ([]global.ScheduleInfo, error) {
     return scheduleInfo, nil
 }
 
-func (this *VascScheduler) StartSerialSchedule(scheduleKey string, schedule global.VascRoutine, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
+func (this *VascScheduler) StartSerialSchedule(scheduleKey string, schedule func(interface{})error, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
     this.ScheduleWaitGroup.Add(1)
     go func(key string, interval int64) {
         for ;this.runnable && !this.needReload; {
@@ -273,7 +273,7 @@ func (this *VascScheduler) StartSerialSchedule(scheduleKey string, schedule glob
     return nil
 }
 
-func (this *VascScheduler) StartOverlappedSchedule(scheduleKey string, schedule global.VascRoutine, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
+func (this *VascScheduler) StartOverlappedSchedule(scheduleKey string, schedule func(interface{})error, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
     if this.CycleScheduleList[scheduleKey]!=nil {
         return errors.New("Duplicated key")
     }
@@ -289,7 +289,7 @@ func (this *VascScheduler) StartOverlappedSchedule(scheduleKey string, schedule 
     return nil
 }
 
-func (this *VascScheduler) StartFixedSchedule(scheduleKey string, schedule global.VascRoutine, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
+func (this *VascScheduler) StartFixedSchedule(scheduleKey string, schedule func(interface{})error, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
     if interval==0 && time.Now().Unix() > timestamp {
         return errors.New("invalid schedule: timestamp expired with zero-interval")
     }
@@ -365,7 +365,7 @@ func (this *VascScheduler) StartFixedSchedule(scheduleKey string, schedule globa
     return nil
 }
 
-func (this *VascScheduler) setSchedule(scheduleKey string, schedule global.VascRoutine, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
+func (this *VascScheduler) setSchedule(scheduleKey string, schedule func(interface{})error, scheduleType uint64, interval int64, timestamp int64, scope int64) error {
     if schedule==nil {
         return errors.New("invalid schedule handler")
     }

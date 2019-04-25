@@ -111,7 +111,7 @@ func (this * VascTask) launchTask(taskList []global.TaskInfo) error {
         if info.Handler==nil {
             handler := this.Application.FuncMap[info.HandlerName]
             if handler!=nil {
-                info.Handler = global.VascRoutine(handler.(global.VascRoutine))
+                info.Handler = handler.(func(interface{}) error)
             }
         }
         if this.TaskList[info.Key]!=nil || info.Handler==nil {
@@ -136,12 +136,12 @@ func (this * VascTask) launchTask(taskList []global.TaskInfo) error {
     return nil
 }
 
-func (this * VascTask) LoadTask(app *global.VascApplication) error {
+func (this * VascTask) LoadTask(taskList []global.TaskInfo, app *global.VascApplication) error {
     if app==nil {
         return nil
     }
     this.Application = app
-    this.loadTask()
+    this.loadTask(taskList)
     
     go func() {
         for ;this.runnable; {
@@ -151,7 +151,7 @@ func (this * VascTask) LoadTask(app *global.VascApplication) error {
             }
             if this.needReload {
                 this.needReload = false
-                this.loadTask()
+                this.loadTask(taskList)
             }
             time.Sleep(time.Millisecond * 100)
         }
@@ -160,10 +160,10 @@ func (this * VascTask) LoadTask(app *global.VascApplication) error {
     return nil
 }
 
-func (this * VascTask) loadTask() error {
+func (this * VascTask) loadTask(taskList []global.TaskInfo) error {
     this.taskWaitGroup.Add(1)
-    if this.Application.TaskList!=nil {
-        err := this.launchTask(this.Application.TaskList)
+    if taskList!=nil {
+        err := this.launchTask(taskList)
         if err!=nil {
             return err
         }
@@ -199,7 +199,7 @@ func (this * VascTask) LoadTaskFromDB() ([]global.TaskInfo, error) {
         taskInfo[index].Key         = value.TaskKey      
         handler := this.Application.FuncMap[value.TaskFuncName]
         if handler!=nil {
-            taskInfo[index].Handler = global.VascRoutine(handler.(global.VascRoutine))
+            taskInfo[index].Handler = handler.(func(interface{}) error)
         } 
         taskInfo[index].Scope       = value.TaskScope     
         taskInfo[index].QueueSize   = value.TaskQueueSize

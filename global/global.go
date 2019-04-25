@@ -20,12 +20,16 @@ type VascRoute struct {
     LocalFilePath  string             `json:"local_file_path"`
 }
 
-type VascApplication struct {
+type ControllerConfig struct {
     WebserverRoute   []VascRoute                   `json:"webserver_route"`
     TaskList         []TaskInfo                    `json:"task_list"`
     ScheduleList     []ScheduleInfo                `json:"schedule_list"`
-    FuncMap            map[string]interface{}      `json:"-"`
-    Configuration      string                      `json:"-"`
+}
+
+type VascApplication struct {
+    FuncMap            map[string]interface{}
+    Configuration      string
+    AppConfiguration   string
 }
 
 type TaskConfig struct {
@@ -36,6 +40,7 @@ type TaskConfig struct {
 
 type TaskInfo struct {
     Key         string                          `json:"task_key"`
+    Type        uint64                          `json:"type"`
     Handler     func(content interface{}) error `json:"-"`
     HandlerName string                          `json:"handler"`
     TaskQueue   chan(interface{})               `json:"-"`
@@ -88,7 +93,6 @@ type VascConfig struct {
     LocalCache  *CacheConfigFile    `json:"localcache"`
     Scheduler   *ScheduleConfig     `json:"scheduler"`
     Task        *TaskConfig         `json:"task"`
-    Application *VascApplication    `json:"application"`
 }
 
 type dbConfigItem struct {

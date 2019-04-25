@@ -42,20 +42,17 @@ var vascInstance    *VascService
 var vascSignalChan   chan os.Signal
 var logLevel        *string
 
-func loadModule(projectName string, logLevel string, configFilePath string, app *global.VascApplication) error {
-    config := app.Configuration
-    if config=="" {
-        configFile, err := ioutil.ReadFile(configFilePath)
-        if err != nil{
-            return errors.New("Cannot read config file for project:" + projectName)
-        }
-        config = string(configFile)
+func loadModule(projectName string, logLevel string, app *global.VascApplication) error {
+    var vascConfiguration global.VascConfig
+    err := json.Unmarshal([]byte(app.Configuration), &vascConfiguration)
+    if err != nil {
+        return errors.New("Cannot parse vasc config file for project:" + projectName)
     }
     
-    var jsonResult global.VascConfig
-    err := json.Unmarshal([]byte(config), &jsonResult)
+    var appConfiguration global.ControllerConfig
+    err = json.Unmarshal([]byte(app.AppConfiguration), &appConfiguration)
     if err != nil {
-        return errors.New("Cannot parse config file for project:" + projectName)
+        return errors.New("Cannot parse application config file for project:" + projectName)
     }
     
     //Initialization of logger. This must be done before all vasc modules
@@ -78,41 +75,41 @@ func loadModule(projectName string, logLevel string, configFilePath string, app 
             return errors.New("invalid log level")
     }
     
-    if jsonResult.Redis!=nil && jsonResult.Redis.Enable {
+    if vascConfiguration.Redis!=nil && vascConfiguration.Redis.Enable {
         vascInstance.Redis = new(vredis.VascRedis)
-        err := vascInstance.Redis.LoadConfig(jsonResult.Redis, projectName)
+        err := vascInstance.Redis.LoadConfig(vascConfiguration.Redis, projectName)
         if err!=nil {
             return err
         }
         vascInstance.BitCode |= VASC_REDIS
     }    
     
-    if jsonResult.Database!=nil && jsonResult.Database.Enable && len(jsonResult.Database.InstanceList) > 0 {
+    if vascConfiguration.Database!=nil && vascConfiguration.Database.Enable && len(vascConfiguration.Database.InstanceList) > 0 {
         vascInstance.DB = new(database.VascDataBase)
-        err := vascInstance.DB.LoadConfig(jsonResult.Database, projectName)
+        err := vascInstance.DB.LoadConfig(vascConfiguration.Database, projectName)
         if err!=nil {
             return err
         }
         vascInstance.BitCode |= VASC_DB
     }
     
-    if jsonResult.LocalCache!=nil && jsonResult.LocalCache.Enable{
+    if vascConfiguration.LocalCache!=nil && vascConfiguration.LocalCache.Enable{
         vascInstance.Cache = new(localcache.CacheManager)
-        err := vascInstance.Cache.LoadConfig(jsonResult.LocalCache, vascInstance.Redis, projectName)
+        err := vascInstance.Cache.LoadConfig(vascConfiguration.LocalCache, vascInstance.Redis, projectName)
         if err!=nil {
             return err
         }
         vascInstance.BitCode |= VASC_CACHE
     }
     
-    if jsonResult.Webserver!=nil && jsonResult.Webserver.Enable {
+    if vascConfiguration.Webserver!=nil && vascConfiguration.Webserver.Enable {
         vascInstance.WebServer = new(webserver.VascWebServer)
-        err := vascInstance.WebServer.LoadConfig(jsonResult.Webserver, projectName)
+        err := vascInstance.WebServer.LoadConfig(vascConfiguration.Webserver, projectName)
         if err!=nil {
             return err
         }
         
-        err = vascInstance.WebServer.LoadModules(app.WebserverRoute)
+        err = vascInstance.WebServer.LoadModules(appConfiguration.WebserverRoute)
         if err!=nil {
             return err
         }
@@ -120,14 +117,14 @@ func loadModule(projectName string, logLevel string, configFilePath string, app 
         vascInstance.BitCode |= VASC_WEBSERVER
     }
     
-    if jsonResult.Scheduler!=nil && jsonResult.Scheduler.Enable {
+    if vascConfiguration.Scheduler!=nil && vascConfiguration.Scheduler.Enable {
         vascInstance.Scheduler = new(scheduler.VascScheduler)
-        err := vascInstance.Scheduler.LoadConfig(jsonResult.Scheduler, vascInstance.Redis, vascInstance.DB, projectName)
+        err := vascInstance.Scheduler.LoadConfig(vascConfiguration.Scheduler, vascInstance.Redis, vascInstance.DB, projectName)
         if err!=nil {
             return err
         }
         
-        err = vascInstance.Scheduler.LoadSchedule(app)
+        err = vascInstance.Scheduler.LoadSchedule(appConfiguration.ScheduleList, app)
         if err!=nil {
             return err
         }
@@ -135,14 +132,14 @@ func loadModule(projectName string, logLevel string, configFilePath string, app 
         vascInstance.BitCode |= VASC_SCHEDULER
     }
 
-    if jsonResult.Task!=nil && jsonResult.Task.Enable {
+    if vascConfiguration.Task!=nil && vascConfiguration.Task.Enable {
         vascInstance.Task = new(task.VascTask)
-        err := vascInstance.Task.LoadConfig(jsonResult.Task, vascInstance.Redis, vascInstance.DB, projectName)
+        err := vascInstance.Task.LoadConfig(vascConfiguration.Task, vascInstance.Redis, vascInstance.DB, projectName)
         if err!=nil {
             return err
         }
         
-        err = vascInstance.Task.LoadTask(app)
+        err = vascInstance.Task.LoadTask(appConfiguration.TaskList, app)
         if err!=nil {
             return err
         }
@@ -153,13 +150,12 @@ func loadModule(projectName string, logLevel string, configFilePath string, app 
     return nil
 }
 
-func initModule(projectName string, logLevel string, configFilePath string, app *global.VascApplication) error {
+func initModule(projectName string, logLevel string, app *global.VascApplication) error {
     return nil
 }
 
 func InitInstance(app *global.VascApplication) error {
     project    := flag.String("n", "",      "project name")
-    configfile := flag.String("c", "",      "vasc config file path")
 	pidfile    := flag.String("p", "",      "pid file path")
 	mode       := flag.String("m", "normal","running mode(normal/bootstrap)")
 	logLevel   := flag.String("l", "debug", "log level(debug, info, warning, error)")
@@ -170,7 +166,7 @@ func InitInstance(app *global.VascApplication) error {
         return errors.New("project name cannot be empty")
     }
     
-    if *configfile=="" && app.Configuration=="" {
+    if app.Configuration=="" {
         return errors.New("config file path cannot be empty")
     }
    
@@ -187,10 +183,10 @@ func InitInstance(app *global.VascApplication) error {
     vascInstance.BitCode = 0
     
     if *mode=="bootstrap" {
-        return initModule(*project, *logLevel, *configfile, app)
+        return initModule(*project, *logLevel, app)
     }
     
-    return loadModule(*project, *logLevel, *configfile, app)
+    return loadModule(*project, *logLevel, app)
 }
 
 func StartService() error {
