@@ -224,8 +224,9 @@ func (this *VascScheduler) loadSchedule(scheduleList []global.ScheduleInfo) erro
 }
 
 func (this *VascScheduler) LoadScheduleFromDB() ([]global.ScheduleInfo, error) {
-    this.DBConn.Sync2(new(VascSchedulerDB))
-    
+    if this.DBConn==nil {
+        return nil, errors.New("cannot load task from database")
+    }
     result := make([]VascSchedulerDB, 0)
     err := this.DBConn.Find(&result)
     if err!=nil {
@@ -246,6 +247,10 @@ func (this *VascScheduler) LoadScheduleFromDB() ([]global.ScheduleInfo, error) {
     }
     
     return scheduleInfo, nil
+}
+
+func (this *VascScheduler) Bootstrap() {
+    this.DBConn.Sync2(new(VascSchedulerDB))
 }
 
 func (this *VascScheduler) StartSerialSchedule(scheduleKey string, schedule func(interface{})error, scheduleType uint64, interval int64, timestamp int64, scope int64) error {

@@ -109,7 +109,7 @@ func loadModule(projectName string, logLevel string, app *global.VascApplication
             return err
         }
         
-        err = vascInstance.WebServer.LoadModules(appConfiguration.WebserverRoute)
+        err = vascInstance.WebServer.LoadModules(appConfiguration.WebserverRoute, appConfiguration.WebServerGroup, app)
         if err!=nil {
             return err
         }

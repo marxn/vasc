@@ -186,7 +186,6 @@ func (this * VascTask) LoadTaskFromDB() ([]global.TaskInfo, error) {
     if this.DBConn==nil {
         return nil, errors.New("cannot load task from database")
     }
-    this.DBConn.Sync2(new(VascTaskDB))
     
     result := make([]VascTaskDB, 0)
     err := this.DBConn.Find(&result)
@@ -207,6 +206,10 @@ func (this * VascTask) LoadTaskFromDB() ([]global.TaskInfo, error) {
     }
     
     return taskInfo, nil
+}
+
+func (this * VascTask) Bootstrap() {
+    this.DBConn.Sync2(new(VascTaskDB))
 }
 
 func (this *VascTask) PushNativeTask(key string, content interface{}) error {

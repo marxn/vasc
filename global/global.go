@@ -12,18 +12,23 @@ type WebServerConfig struct {
 
 type VascRoute struct {
     Method         string             `json:"method"`
+    Group          string             `json:"group"`
     Route          string             `json:"route"`
     HandlerName    string             `json:"route_handler"`
     RouteHandler   gin.HandlerFunc    `json:"-"`
-    MiddlewareName string             `json:"middleware"`
-    Middleware     gin.HandlerFunc    `json:"-"`
     LocalFilePath  string             `json:"local_file_path"`
 }
 
+type VascRouteGroup struct {
+    Group          string             `json:"group"`
+    MiddlewareName string             `json:"middleware"`
+}
+
 type ControllerConfig struct {
-    WebserverRoute   []VascRoute                   `json:"webserver_route"`
-    TaskList         []TaskInfo                    `json:"task_list"`
-    ScheduleList     []ScheduleInfo                `json:"schedule_list"`
+    WebserverRoute   []VascRoute      `json:"webserver_route"`
+    WebServerGroup   []VascRouteGroup `json:"webserver_route_group"`
+    TaskList         []TaskInfo       `json:"task_list"`
+    ScheduleList     []ScheduleInfo   `json:"schedule_list"`
 }
 
 type VascApplication struct {
@@ -33,20 +38,20 @@ type VascApplication struct {
 }
 
 type TaskConfig struct {
-    Enable           bool           `json:"enable"`
-    LoadTaskDB       string         `json:"load_from_database"`
-    GlobalQueueRedis string         `json:"global_queue_redis"`
+    Enable           bool              `json:"enable"`
+    LoadTaskDB       string            `json:"load_from_database"`
+    GlobalQueueRedis string            `json:"global_queue_redis"`
 }
 
 type TaskInfo struct {
-    Key         string                          `json:"task_key"`
-    Type        uint64                          `json:"type"`
-    Handler     func(content interface{}) error `json:"-"`
-    HandlerName string                          `json:"handler"`
-    TaskQueue   chan(interface{})               `json:"-"`
-    QueueSize   int64                           `json:"queue_size"`
-    HandlerNum  int64                           `json:"handler_num"`
-    Scope       int64                           `json:"scope"`
+    Key         string                  `json:"task_key"`
+    Type        uint64                  `json:"type"`
+    Handler     func(interface{}) error `json:"-"`
+    HandlerName string                  `json:"handler"`
+    TaskQueue   chan(interface{})       `json:"-"`
+    QueueSize   int64                   `json:"queue_size"`
+    HandlerNum  int64                   `json:"handler_num"`
+    Scope       int64                   `json:"scope"`
 }
 
 type ScheduleConfig struct {
@@ -107,5 +112,3 @@ type DatabaseConfig struct {
     Enable             bool          `json:"enable"`
     InstanceList     []dbConfigItem  `json:"instance_list"`
 }
-
-type VascRoutine func (interface{}) error
