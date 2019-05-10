@@ -118,6 +118,8 @@ func (this *VascWebServer) LoadModules(modules []global.VascRoute, groups []glob
 	        groupMiddleware := app.FuncMap[groupInfo.MiddlewareName]
 	        if groupMiddleware!=nil {
 	            groupCore.Use(groupMiddleware.(func(*gin.Context)))
+	        } else {
+	            groupCore.Use(DefaultMiddleware)
 	        }
 	    }
 	    
@@ -180,5 +182,5 @@ func DefaultMiddleware(c *gin.Context) {
 }
 
 func ErrorHandler(c *gin.Context) {
-    c.JSON(500, gin.H{"error": gin.H{"code": 500, "message": "Invalid handler"}})
+    c.JSON(501, gin.H{"error": gin.H{"code": 501, "message": "Invalid handler"}})
 }

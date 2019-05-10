@@ -40,7 +40,11 @@ type VascService struct {
 
 var vascInstance    *VascService
 var vascSignalChan   chan os.Signal
-var logLevel        *string
+var configFilePath  *string
+
+func GetConfigFilePath() string {
+    return *configFilePath
+}
 
 func loadModule(projectName string, logLevel string, app *global.VascApplication) error {
     var vascConfiguration global.VascConfig
@@ -155,10 +159,11 @@ func initModule(projectName string, logLevel string, app *global.VascApplication
 }
 
 func InitInstance(app *global.VascApplication) error {
-    project    := flag.String("n", "",      "project name")
-	pidfile    := flag.String("p", "",      "pid file path")
-	mode       := flag.String("m", "normal","running mode(normal/bootstrap)")
-	logLevel   := flag.String("l", "debug", "log level(debug, info, warning, error)")
+    project        := flag.String("n", "",      "project name")
+    configFilePath  = flag.String("c", "",      "project config file path")
+	pidfile        := flag.String("p", "",      "pid file path")
+	mode           := flag.String("m", "normal","running mode(normal/bootstrap)")
+	logLevel       := flag.String("l", "debug", "log level(debug, info, warning, error)")
     
 	flag.Parse()
     

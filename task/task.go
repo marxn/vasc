@@ -91,7 +91,8 @@ func (this * VascTask) taskHandler(taskInfo *global.TaskInfo) {
             if content!=nil && err==nil {
                 taskInfo.Handler(content)
             } else if err!=nil {
-                //ErrorLog("cannot get task from redis: %v", err)
+                time.Sleep(time.Millisecond * 100)
+                //fmt.Printf("cannot get task [%s] from redis: %v\n", taskInfo.Key, err)
             }
         }
     }
