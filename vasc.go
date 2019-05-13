@@ -195,7 +195,11 @@ func InitInstance(app *global.VascApplication) error {
 }
 
 func StartService() error {
-    return vascInstance.WebServer.Start()
+    err := vascInstance.WebServer.Start()
+    if err==nil {
+        return vascInstance.WebServer.CheckService()
+    }
+    return err
 }
 
 func Close() {

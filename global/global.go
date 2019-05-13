@@ -8,6 +8,7 @@ type WebServerConfig struct {
     ListenRetry       int            `json:"listen_retry"`
     ReadTimeout       int            `json:"read_timeout"`
     WriteTimeout      int            `json:"write_timeout"`
+    Monitor           bool           `json:"monitor"`
 }
 
 type VascRoute struct {

@@ -1,20 +1,24 @@
 package webserver
 
+import "fmt"
 import "time"
 import "net/http"
-import "errors"
+import "context"
 import "github.com/gin-gonic/gin"
-import "github.com/marxn/vasc/global" 
+import "github.com/marxn/vasc/global"
+import "github.com/marxn/vasc/utils"
 
 type VascWebServer struct {
     ProjectName     string
     ServiceCore    *gin.Engine
+    Context         context.Context
+    CancelFunc      context.CancelFunc
     ListenRetry     int
     ListenAddr      string
     ReadTimeout     time.Duration
     WriteTimeout    time.Duration
+    Monitor         bool
     HttpServer     *http.Server
-    Runnable        bool
 }
 
 func (this *VascWebServer) LoadConfig(config *global.WebServerConfig, projectName string) error {
@@ -26,16 +30,21 @@ func (this *VascWebServer) LoadConfig(config *global.WebServerConfig, projectNam
     
     this.ServiceCore     = engine
     this.ProjectName     = projectName
-    this.ListenAddr      = config.ListenAddr
     this.ListenRetry     = config.ListenRetry
+    this.ListenAddr      = config.ListenAddr
     this.ReadTimeout     = time.Duration(config.ReadTimeout)
     this.WriteTimeout    = time.Duration(config.WriteTimeout)
-    
+    this.Monitor         = config.Monitor
     return this.InitWebserver()
 }
 
 func (this *VascWebServer) Close() {
-    this.Runnable = false
+    if err := this.HttpServer.Shutdown(this.Context); err==nil {   
+    	select {
+        	case <-this.Context.Done():
+        }
+    }
+	
     this.HttpServer.Close()
 }
 
@@ -46,32 +55,45 @@ func (this *VascWebServer) InitWebserver() error {
 		ReadTimeout:  this.ReadTimeout  * time.Second,
 		WriteTimeout: this.WriteTimeout * time.Second,
 	}
-	this.Runnable = true
 	
     return nil
 }
 
 func (this *VascWebServer) Start() error {
-    timer := time.NewTimer(time.Second * time.Duration(this.ListenRetry + 1))
-    succ  := make(chan bool)
-    defer close(succ)
-    
     go func() {
-    	for counter := 0; counter < this.ListenRetry && this.Runnable; counter++ {
-    	    this.HttpServer.ListenAndServe()
-    		time.Sleep(time.Second)
-    	}
-    	succ <- false
+        for counter:=0; counter < this.ListenRetry; counter++ {
+            if err := this.HttpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+                fmt.Printf("listen[%d] %s failed: %v\n", counter, this.ListenAddr, err)
+                time.Sleep(time.Second)
+            }
+        }
     }()
     
-    select {
-    		case <-timer.C:
-    		    return nil
-    		case <-succ:
-    		    return errors.New("ListenAndServe failed")
-	}
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    
+    this.Context    = ctx
+    this.CancelFunc = cancel
     
 	return nil
+}
+
+func (this *VascWebServer) CheckService() error {
+    if !this.Monitor {
+        return nil
+    }
+    cmd := fmt.Sprintf("curl http://%s/monitor", this.ListenAddr)
+    
+    for errCount := 0; errCount < this.ListenRetry + 5; errCount++ {
+        _, err := utils.ExecShellCmd(cmd)
+        if err!=nil {
+            errCount++
+        }
+        if errCount==this.ListenRetry + 5 {
+            return err
+        }
+        time.Sleep(time.Second)
+    }
+    return nil
 }
 
 func findGroupInfo(groups []global.VascRouteGroup, name string) *global.VascRouteGroup {
@@ -174,6 +196,9 @@ func (this *VascWebServer) LoadModules(modules []global.VascRoute, groups []glob
         }
 	}
 	
+	if this.Monitor {
+	    this.ServiceCore.Any("/monitor", MonitorHandler)
+	}
 	return nil
 }
 
@@ -183,4 +208,8 @@ func DefaultMiddleware(c *gin.Context) {
 
 func ErrorHandler(c *gin.Context) {
     c.JSON(501, gin.H{"error": gin.H{"code": 501, "message": "Invalid handler"}})
+}
+
+func MonitorHandler(c *gin.Context) {
+    c.JSON(200, gin.H{"error": gin.H{"code": 200, "message": "OK"}})
 }
