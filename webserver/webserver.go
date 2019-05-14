@@ -44,7 +44,7 @@ func (this *VascWebServer) Close() {
         	case <-this.Context.Done():
         }
     }
-	
+	this.CancelFunc()
     this.HttpServer.Close()
 }
 
