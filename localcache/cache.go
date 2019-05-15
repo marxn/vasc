@@ -20,6 +20,7 @@ import vredis "github.com/marxn/vasc/redis"
 
 const mod_factor1 = 13
 const mod_factor2 = 101
+const mod_factor3 = 1021
 
 type CacheManager struct {
     ProjectName string
@@ -85,9 +86,11 @@ func (this * CacheManager) SaveToFS(key string, value string, expiration int64) 
     randNum  := rand.Int()
     keyHash1 := pathHash(key, mod_factor1)
     keyHash2 := pathHash(key, mod_factor2)
+    keyHash3 := pathHash(key, mod_factor3)
+    
     keyFile  := fileHash(key)
 
-    path := fmt.Sprintf("%s/%d/%d", this.FSRoot, keyHash1, keyHash2)
+    path := fmt.Sprintf("%s/%d/%d/%d", this.FSRoot, keyHash1, keyHash2, keyHash3)
     os.MkdirAll(path, os.ModePerm)
 
     tempFilePath := fmt.Sprintf("%s/%s.%d", path, keyFile, randNum)
@@ -111,9 +114,10 @@ func (this * CacheManager) SaveToFS(key string, value string, expiration int64) 
 func (this * CacheManager) GetFromFS(key string) (string, error) {
     keyHash1 := pathHash(key, mod_factor1)
     keyHash2 := pathHash(key, mod_factor2)
+    keyHash3 := pathHash(key, mod_factor3)
     keyFile  := fileHash(key)
 
-    path := fmt.Sprintf("%s/%d/%d", this.FSRoot, keyHash1, keyHash2)
+    path := fmt.Sprintf("%s/%d/%d/%d", this.FSRoot, keyHash1, keyHash2, keyHash3)
     valueFilePath := fmt.Sprintf("%s/%s", path, keyFile)
 
     statRet, err := os.Stat(valueFilePath)
