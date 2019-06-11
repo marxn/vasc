@@ -41,6 +41,11 @@ type VascService struct {
 var vascInstance    *VascService
 var vascSignalChan   chan os.Signal
 var configFilePath  *string
+var environment     *string
+
+func GetEnvironment() string {
+    return *environment
+}
 
 func GetConfigFilePath() string {
     return *configFilePath
@@ -161,6 +166,7 @@ func initModule(projectName string, logLevel string, app *global.VascApplication
 func InitInstance(app *global.VascApplication) error {
     project        := flag.String("n", "",      "project name")
     configFilePath  = flag.String("c", "",      "project config file path")
+    environment     = flag.String("e", "",      "environment(demo/test/online/...)")
 	pidfile        := flag.String("p", "",      "pid file path")
 	mode           := flag.String("m", "normal","running mode(normal/bootstrap)")
 	logLevel       := flag.String("l", "debug", "log level(debug, info, warning, error)")
