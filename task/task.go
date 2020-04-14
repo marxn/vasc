@@ -58,7 +58,7 @@ func (this *VascTask) LoadConfig(config *global.TaskConfig, redisPoolList *vredi
         }
         this.DBConn  = dbEngine
     }
-    this.RedisPrefix = fmt.Sprintf("VASC:%s:TASK:", projectName)
+    this.RedisPrefix = fmt.Sprintf("VASCTASK:")
     this.TaskList = make(map[string]*global.TaskInfo)
     this.runnable    = true
     this.needReload  = false
@@ -262,6 +262,7 @@ func (this *VascTask) PushGlobalTask(key string, content *string) error {
         return errors.New("cannot find redis configuration for pushing task")
     }
     aKey := this.RedisPrefix + key
+    
     redisConn := this.RedisConn.Get()
     defer redisConn.Close()
     
