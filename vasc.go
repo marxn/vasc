@@ -160,10 +160,6 @@ func loadModule(projectName string, logLevel string, app *global.VascApplication
     return nil
 }
 
-func initModule(projectName string, logLevel string, app *global.VascApplication) error {
-    return nil
-}
-
 func InitInstance(app *global.VascApplication) error {
     project        := flag.String("n", "",      "project name")
     environment     = flag.String("e", "",      "environment(demo/test/online/...)")
@@ -192,10 +188,6 @@ func InitInstance(app *global.VascApplication) error {
     //Initliaze object
     vascInstance = new(VascService)
     vascInstance.BitCode = 0
-    
-    if *mode=="bootstrap" {
-        return initModule(*project, *logLevel, app)
-    }
     
     return loadModule(*project, *logLevel, app)
 }

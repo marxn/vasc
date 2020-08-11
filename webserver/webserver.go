@@ -35,6 +35,11 @@ func (this *VascWebServer) LoadConfig(config *global.WebServerConfig, projectNam
     this.ReadTimeout     = time.Duration(config.ReadTimeout)
     this.WriteTimeout    = time.Duration(config.WriteTimeout)
     this.Monitor         = config.Monitor
+    
+    ctx, cancel := context.WithTimeout(context.Background(), 50 * time.Millisecond)
+    this.Context    = ctx
+    this.CancelFunc = cancel
+    
     return this.InitWebserver()
 }
 
@@ -68,11 +73,6 @@ func (this *VascWebServer) Start() error {
             }
         }
     }()
-    
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    
-    this.Context    = ctx
-    this.CancelFunc = cancel
     
 	return nil
 }
