@@ -42,6 +42,7 @@ var vascInstance    *VascService
 var vascSignalChan   chan os.Signal
 var configFilePath  *string
 var environment     *string
+var initializer      func() error
 
 func GetEnvironment() string {
     return *environment
@@ -200,7 +201,17 @@ func InitInstance(app *global.VascApplication) error {
     return loadModule(*project, *logLevel, app)
 }
 
+func SetInitializer(initfunc func() error) {
+    initializer = initfunc
+}
+
 func StartService() error {
+    if initializer != nil {
+        if err := initializer(); err != nil {
+            return err
+        }
+    }
+    
     err := vascInstance.WebServer.Start()
     if err==nil {
         return vascInstance.WebServer.CheckService()
