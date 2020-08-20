@@ -40,9 +40,14 @@ type VascService struct {
 
 var vascInstance    *VascService
 var vascSignalChan   chan os.Signal
+var project         *string
 var environment     *string
 var mode            *string
 var initializer      func() error
+
+func GetProjectName() string {
+    return *project
+}
 
 func GetEnvironment() string {
     return *environment
@@ -161,7 +166,7 @@ func loadModule(projectName string, logLevel string, app *global.VascApplication
 }
 
 func InitInstance(app *global.VascApplication) error {
-    project        := flag.String("n", "",      "project name")
+    project         = flag.String("n", "",      "project name")
     environment     = flag.String("e", "",      "environment(demo/test/online/...)")
 	pidfile        := flag.String("p", "",      "pid file path")
 	mode            = flag.String("m", "normal","running mode(normal/bootstrap)")
