@@ -24,6 +24,8 @@ type VascTask struct {
     DBConn            *xorm.Engine
     TaskList           map[string]*global.TaskInfo
     taskWaitGroup      sync.WaitGroup
+    
+    GivenTaskList    []global.TaskInfo
 }
 
 type VascTaskDB struct {
@@ -137,12 +139,8 @@ func (this * VascTask) launchTask(taskList []global.TaskInfo) error {
     return nil
 }
 
-func (this * VascTask) LoadTask(taskList []global.TaskInfo, app *global.VascApplication) error {
-    if app==nil {
-        return nil
-    }
-    this.Application = app
-    this.loadTask(taskList)
+func (this *VascTask) Start() error {
+    this.loadTask(this.GivenTaskList)
     
     go func() {
         for ;this.runnable; {
@@ -152,11 +150,21 @@ func (this * VascTask) LoadTask(taskList []global.TaskInfo, app *global.VascAppl
             }
             if this.needReload {
                 this.needReload = false
-                this.loadTask(taskList)
+                this.loadTask(this.GivenTaskList)
             }
             time.Sleep(time.Millisecond * 100)
         }
     }()
+    
+    return nil
+}
+
+func (this * VascTask) LoadTask(taskList []global.TaskInfo, app *global.VascApplication) error {
+    if app==nil {
+        return nil
+    }
+    this.Application   = app
+    this.GivenTaskList = taskList
     
     return nil
 }

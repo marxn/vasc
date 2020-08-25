@@ -208,11 +208,27 @@ func StartService() error {
         }
     }
     
-    err := vascInstance.WebServer.Start()
-    if err==nil {
-        return vascInstance.WebServer.CheckService()
+    if vascInstance.BitCode & VASC_SCHEDULER != 0 {
+        if err := vascInstance.Scheduler.Start(); err != nil {
+            return err
+        }
     }
-    return err
+    
+    if vascInstance.BitCode & VASC_TASK != 0 {
+        if err := vascInstance.Task.Start(); err != nil {
+            return err
+        }
+    }
+    
+    if vascInstance.BitCode & VASC_WEBSERVER != 0 {
+        if err := vascInstance.WebServer.Start(); err != nil {
+            return err
+        } else {
+            return vascInstance.WebServer.CheckService() 
+        }
+    }
+    
+    return nil
 }
 
 func Close() {

@@ -37,6 +37,9 @@ type VascScheduler struct {
     needReload         bool
     CycleScheduleList  map[string]*global.ScheduleInfo
     ScheduleWaitGroup  sync.WaitGroup
+    
+    ScheduleList     []global.ScheduleInfo
+    App               *global.VascApplication
 }
 
 type VascSchedulerDB struct {
@@ -156,14 +159,8 @@ func (this *VascScheduler) traverseCycleScheduleList () error {
     return nil
 }
 
-func (this * VascScheduler) LoadSchedule(scheduleList []global.ScheduleInfo, app *global.VascApplication) error {
-    if app==nil {
-        return nil
-    }
-    this.Application = app
-    this.needReload  = false
-    this.loadSchedule(scheduleList)
-    
+func (this * VascScheduler) Start() error {
+    this.loadSchedule(this.ScheduleList)
     go func() {
         for ;this.runnable; {
             this.ScheduleWaitGroup.Wait()
@@ -172,12 +169,23 @@ func (this * VascScheduler) LoadSchedule(scheduleList []global.ScheduleInfo, app
             }
             if this.needReload {
                 this.needReload = false
-                this.loadSchedule(scheduleList)
+                this.loadSchedule(this.ScheduleList)
             }
             time.Sleep(time.Millisecond * 100)
         }
     }()
+    
+    return nil
+}
 
+func (this * VascScheduler) LoadSchedule(scheduleList []global.ScheduleInfo, app *global.VascApplication) error {
+    if app==nil {
+        return nil
+    }
+    this.ScheduleList = scheduleList
+    this.Application  = app
+    this.needReload   = false
+    
     return nil
 }
 
