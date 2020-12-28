@@ -22,15 +22,15 @@ type VascLog struct {
 func (this *VascLog) vascLogWrapper(level int, s string) {
 	switch level {
 	case LOG_DEBUG:
-		this.Logger.Debug(s)
+		this.Logger.Debug(fmt.Sprintf("[debug] %s", s))
 	case LOG_INFO:
-		this.Logger.Info(s)
+		this.Logger.Info(fmt.Sprintf("[info] %s", s))
 	case LOG_WARN:
-		this.Logger.Warning(s)
+		this.Logger.Warning(fmt.Sprintf("[warning] %s", s))
 	case LOG_ERROR:
-		this.Logger.Err(s)
+		this.Logger.Err(fmt.Sprintf("[error] %s", s))
 	default:
-		this.Logger.Err(s)
+		this.Logger.Err(fmt.Sprintf("[error] %s", s))
 	}
 }
 
