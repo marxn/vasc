@@ -101,7 +101,7 @@ func loadModule(projectName string, logLevel string, app *global.VascApplication
     
     if vascConfiguration.Database!=nil && vascConfiguration.Database.Enable && len(vascConfiguration.Database.InstanceList) > 0 {
         vascInstance.DB = new(database.VascDataBase)
-        err := vascInstance.DB.LoadConfig(vascConfiguration.Database, projectName)
+        err := vascInstance.DB.LoadConfig(vascConfiguration.Database, projectName, vascInstance.Log)
         if err!=nil {
             return err
         }

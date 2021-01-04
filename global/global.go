@@ -105,6 +105,7 @@ type dbConfigItem struct {
     Key               string         `json:"key"`
     DatabaseConnstr   string         `json:"db_connstr"`
     Location          string         `json:"location"`
+    EnableLogger      bool           `json:"enable_logger"`
     MaxIdelConns      int            `json:"max_idle_conns"`
     MaxOpenConns      int            `json:"max_open_conns"`
 }

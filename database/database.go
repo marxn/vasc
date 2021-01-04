@@ -6,6 +6,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/go-xorm/xorm"
 	"github.com/marxn/vasc/global"
+    "github.com/marxn/vasc/logger"
 	"time"
 )
 
@@ -13,7 +14,7 @@ type VascDataBase struct {
 	Engine map[string]*xorm.Engine
 }
 
-func (this *VascDataBase) LoadConfig(config *global.DatabaseConfig, projectName string) error {
+func (this *VascDataBase) LoadConfig(config *global.DatabaseConfig, projectName string, logWriter *logger.VascLog) error {
 	dbNum := len(config.InstanceList)
 	if dbNum < 1 {
 		return errors.New("empty database config")
@@ -52,6 +53,12 @@ func (this *VascDataBase) LoadConfig(config *global.DatabaseConfig, projectName 
 		} else {
 			this.Engine[value.Key].TZLocation, _ = time.LoadLocation("Asia/Shanghai")
 		}
+		
+		if config.InstanceList[index].EnableLogger {
+		    logger := xorm.NewSimpleLogger(logWriter.Logger)
+            logger.ShowSQL(true)
+            this.Engine[value.Key].SetLogger(logger)
+		} 
 	}
 
 	return this.InitDatabase()
