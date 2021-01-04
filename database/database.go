@@ -1,20 +1,18 @@
 package database
 
-import (
-	"errors"
-	"fmt"
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/go-xorm/xorm"
-	"github.com/marxn/vasc/global"
-    "github.com/marxn/vasc/logger"
-	"time"
-)
+import "errors"
+import "fmt"
+import "time"
+import "log/syslog"
+import _ "github.com/go-sql-driver/mysql"
+import "github.com/go-xorm/xorm"
+import "github.com/marxn/vasc/global"
 
 type VascDataBase struct {
 	Engine map[string]*xorm.Engine
 }
 
-func (this *VascDataBase) LoadConfig(config *global.DatabaseConfig, projectName string, logWriter *logger.VascLog) error {
+func (this *VascDataBase) LoadConfig(config *global.DatabaseConfig, projectName string) error {
 	dbNum := len(config.InstanceList)
 	if dbNum < 1 {
 		return errors.New("empty database config")
@@ -55,7 +53,12 @@ func (this *VascDataBase) LoadConfig(config *global.DatabaseConfig, projectName 
 		}
 		
 		if config.InstanceList[index].EnableLogger {
-		    logger := xorm.NewSimpleLogger(logWriter.Logger)
+		    logWriter, err := syslog.New(syslog.LOG_INFO, projectName + "/_sql")
+            if err != nil {
+            	return err
+            }
+            
+		    logger := xorm.NewSimpleLogger(logWriter)
             logger.ShowSQL(true)
             this.Engine[value.Key].SetLogger(logger)
 		} 

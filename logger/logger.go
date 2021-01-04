@@ -1,10 +1,11 @@
 package logger
 
-import (
-    "fmt"
-    "errors"
-    "log/syslog"
-)
+import "fmt"
+import "errors"
+import "log/syslog"
+import "bytes"
+import "runtime"
+import "strconv"
 
 const (
 	LOG_DEBUG = 0
@@ -19,18 +20,27 @@ type VascLog struct {
     Logger     *syslog.Writer
 }
 
-func (this *VascLog) vascLogWrapper(level int, s string) {
+func getGID() uint64 {
+    b := make([]byte, 64)
+    b = b[:runtime.Stack(b, false)]
+    b = bytes.TrimPrefix(b, []byte("goroutine"))
+    b = b[:bytes.IndexByte(b, ' ')]
+    n, _ := strconv.ParseUint(string(b), 10, 64)
+    return n
+}
+
+func (this *VascLog) VLogger(tag string, evt string, tid uint64, level int, s string) {
 	switch level {
 	case LOG_DEBUG:
-		this.Logger.Debug(fmt.Sprintf("[debug] %s", s))
+		this.Logger.Debug(fmt.Sprintf("tag[%s] evt[%s] [debug] tid[%x] %s", tag, evt, tid, s))
 	case LOG_INFO:
-		this.Logger.Info(fmt.Sprintf("[info] %s", s))
+		this.Logger.Info(fmt.Sprintf("tag[%s] evt[%s] [info] tid[%x] %s", tag, evt, tid, s))
 	case LOG_WARN:
-		this.Logger.Warning(fmt.Sprintf("[warning] %s", s))
+		this.Logger.Warning(fmt.Sprintf("tag[%s] evt[%s] [warning] tid[%x] %s", tag, evt, tid, s))
 	case LOG_ERROR:
-		this.Logger.Err(fmt.Sprintf("[error] %s", s))
+		this.Logger.Err(fmt.Sprintf("tag[%s] evt[%s] [error] tid[%x] %s", tag, evt, tid, s))
 	default:
-		this.Logger.Err(fmt.Sprintf("[error] %s", s))
+		this.Logger.Err(fmt.Sprintf("tag[%s] evt[%s] [error] tid[%x] %s", tag, evt, tid, s))
 	}
 }
 
@@ -54,25 +64,25 @@ func (this *VascLog) Close() {
 
 func (this *VascLog) ErrorLog(format string, v ...interface{}) {
 	if this.LogLevel <= LOG_ERROR {
-		this.vascLogWrapper(LOG_ERROR, fmt.Sprintf(format, v...))
+		this.VLogger("root", "", getGID(), LOG_ERROR, fmt.Sprintf(format, v...))
 	}
 }
 
 func (this *VascLog) InfoLog(format string, v ...interface{}) {
 	if this.LogLevel <= LOG_INFO {
-		this.vascLogWrapper(LOG_INFO, fmt.Sprintf(format, v...))
+		this.VLogger("root", "", getGID(), LOG_INFO, fmt.Sprintf(format, v...))
 	}
 }
 
 func (this *VascLog) WarnLog(format string, v ...interface{}) {
 	if this.LogLevel <= LOG_WARN {
-		this.vascLogWrapper(LOG_WARN, fmt.Sprintf(format, v...))
+		this.VLogger("root", "", getGID(), LOG_WARN, fmt.Sprintf(format, v...))
 	}
 }
 
 func (this *VascLog) DebugLog(format string, v ...interface{}) {
 	if this.LogLevel <= LOG_DEBUG {
-		this.vascLogWrapper(LOG_DEBUG, fmt.Sprintf(format, v...))
+		this.VLogger("root", "", getGID(), LOG_DEBUG, fmt.Sprintf(format, v...))
 	}
 }
 
