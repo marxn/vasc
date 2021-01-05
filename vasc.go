@@ -16,7 +16,6 @@ import (
     "github.com/marxn/vasc/scheduler"
     "github.com/marxn/vasc/task"
     "github.com/marxn/vasc/localcache"
-    "github.com/marxn/vasc/logger"
 )
 
 const VASC_NONE      = 0x0
@@ -30,7 +29,6 @@ const VASC_TASK      = 0x01 << 6
 type VascService struct {
     Cache         *localcache.CacheManager
     WebServer     *webserver.VascWebServer
-    Log           *logger.VascLog
     DB            *database.VascDataBase
     Redis         *vredis.VascRedis
     Scheduler     *scheduler.VascScheduler
@@ -44,6 +42,7 @@ var project         *string
 var environment     *string
 var mode            *string
 var initializer      func() error
+var vascLogLevel     string
 
 func GetProjectName() string {
     return *project
@@ -57,7 +56,7 @@ func GetMode() string {
     return *mode
 }
 
-func loadModule(projectName string, logLevel string, app *global.VascApplication) error {
+func loadModule(projectName string, app *global.VascApplication) error {
     var vascConfiguration global.VascConfig
     err := json.Unmarshal([]byte(app.Configuration), &vascConfiguration)
     if err != nil {
@@ -68,26 +67,6 @@ func loadModule(projectName string, logLevel string, app *global.VascApplication
     err = json.Unmarshal([]byte(app.AppConfiguration), &appConfiguration)
     if err != nil {
         return errors.New("Cannot parse application config file for project:" + projectName)
-    }
-    
-    //Initialization of logger. This must be done before all vasc modules
-    vascInstance.Log = new(logger.VascLog)
-    err = vascInstance.Log.LoadConfig(projectName)
-    if err!=nil {
-        return err
-    }
-    
-    switch logLevel {
-        case "debug":
-            vascInstance.Log.SetLogLevel(logger.LOG_DEBUG)
-        case "info":
-            vascInstance.Log.SetLogLevel(logger.LOG_INFO)
-        case "warning":
-            vascInstance.Log.SetLogLevel(logger.LOG_WARN)
-        case "error":
-            vascInstance.Log.SetLogLevel(logger.LOG_ERROR)
-        default:
-            return errors.New("invalid log level")
     }
     
     if vascConfiguration.Redis!=nil && vascConfiguration.Redis.Enable {
@@ -194,7 +173,9 @@ func InitInstance(app *global.VascApplication) error {
     vascInstance = new(VascService)
     vascInstance.BitCode = 0
     
-    return loadModule(*project, *logLevel, app)
+    vascLogLevel = *logLevel
+    
+    return loadModule(*project, app)
 }
 
 func SetInitializer(initfunc func() error) {
@@ -250,8 +231,6 @@ func Close() {
     if(vascInstance.BitCode & VASC_REDIS != 0) {
         vascInstance.Redis.Close()
     }
-    
-    vascInstance.Log.Close()
 }
 
 func GetVascInstance() *VascService {
@@ -285,21 +264,4 @@ func VascReloader() {
     }
     vascInstance.Scheduler.ReloadSchedule()
     vascInstance.Task.ReloadTaskList()
-}
-
-//Some simple encapsulations
-func ErrorLog(format string, v ...interface{}) {
-    GetVascInstance().Log.ErrorLog(format, v...)
-}
-
-func InfoLog(format string, v ...interface{}) {
-    GetVascInstance().Log.InfoLog(format, v...)
-}
-
-func WarnLog(format string, v ...interface{}) {
-    GetVascInstance().Log.WarnLog(format, v...)
-}
-
-func DebugLog(format string, v ...interface{}) {
-    GetVascInstance().Log.DebugLog(format, v...)
 }
