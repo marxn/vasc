@@ -1,13 +1,13 @@
 package vasc
 
 import (
-	"flag"
-	"fmt"
-	"os"
-	"errors"
-	"syscall"
-	"os/signal"
-	"io/ioutil"
+    "flag"
+    "fmt"
+    "os"
+    "errors"
+    "syscall"
+    "os/signal"
+    "io/ioutil"
     "encoding/json"
     "github.com/marxn/vasc/global"
     "github.com/marxn/vasc/database"
@@ -78,14 +78,14 @@ func loadModule(projectName string, logLevel string, app *global.VascApplication
     }
     
     switch logLevel {
-    	case "debug":
-    		vascInstance.Log.SetLogLevel(logger.LOG_DEBUG)
-    	case "info":
-    		vascInstance.Log.SetLogLevel(logger.LOG_INFO)
-    	case "warning":
-    		vascInstance.Log.SetLogLevel(logger.LOG_WARN)
-    	case "error":
-    		vascInstance.Log.SetLogLevel(logger.LOG_ERROR)
+        case "debug":
+            vascInstance.Log.SetLogLevel(logger.LOG_DEBUG)
+        case "info":
+            vascInstance.Log.SetLogLevel(logger.LOG_INFO)
+        case "warning":
+            vascInstance.Log.SetLogLevel(logger.LOG_WARN)
+        case "error":
+            vascInstance.Log.SetLogLevel(logger.LOG_ERROR)
         default:
             return errors.New("invalid log level")
     }
@@ -168,11 +168,11 @@ func loadModule(projectName string, logLevel string, app *global.VascApplication
 func InitInstance(app *global.VascApplication) error {
     project         = flag.String("n", "",      "project name")
     environment     = flag.String("e", "",      "environment(demo/test/online/...)")
-	pidfile        := flag.String("p", "",      "pid file path")
-	mode            = flag.String("m", "normal","running mode(normal/bootstrap)")
-	logLevel       := flag.String("l", "debug", "log level(debug, info, warning, error)")
+    pidfile        := flag.String("p", "",      "pid file path")
+    mode            = flag.String("m", "normal","running mode(normal/bootstrap)")
+    logLevel       := flag.String("l", "debug", "log level(debug, info, warning, error)")
     
-	flag.Parse()
+    flag.Parse()
     
     if *project=="" {
         return errors.New("project name cannot be empty")
@@ -184,7 +184,7 @@ func InitInstance(app *global.VascApplication) error {
    
     if *pidfile!="" {
         GeneratePidFile(pidfile)
-	}
+    }
     
     //Install signal receiver
     vascSignalChan = make(chan os.Signal)
@@ -259,11 +259,11 @@ func GetVascInstance() *VascService {
 }
 
 func GeneratePidFile(pidfile *string) {
-	pid := fmt.Sprintf("%d", os.Getpid())
-	err := ioutil.WriteFile(*pidfile, []byte(pid), 0666)
-	if err != nil {
-		fmt.Println("Cannot write pid file:" + err.Error())
-	}
+    pid := fmt.Sprintf("%d", os.Getpid())
+    err := ioutil.WriteFile(*pidfile, []byte(pid), 0666)
+    if err != nil {
+        fmt.Println("Cannot write pid file:" + err.Error())
+    }
 }
 
 func Wait() {
