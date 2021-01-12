@@ -1,9 +1,12 @@
 package webserver
 
+import "os"
+import "net"
 import "fmt"
 import "time"
 import "net/http"
 import "context"
+import "errors"
 import "github.com/gin-gonic/gin"
 import "github.com/marxn/vasc/global"
 import "github.com/marxn/vasc/utils"
@@ -45,36 +48,58 @@ func (this *VascWebServer) LoadConfig(config *global.WebServerConfig, projectNam
 
 func (this *VascWebServer) Close() {
     if err := this.HttpServer.Shutdown(this.Context); err==nil {   
-    	select {
-        	case <-this.Context.Done():
+        select {
+            case <-this.Context.Done():
         }
     }
-	this.CancelFunc()
+    this.CancelFunc()
     this.HttpServer.Close()
 }
 
 func (this *VascWebServer) InitWebserver() error {
-	this.HttpServer = &http.Server{
-		Addr:         this.ListenAddr,
-		Handler:      this.ServiceCore,
-		ReadTimeout:  this.ReadTimeout  * time.Second,
-		WriteTimeout: this.WriteTimeout * time.Second,
-	}
-	
+    this.HttpServer = &http.Server{
+        Addr:         this.ListenAddr,
+        Handler:      this.ServiceCore,
+        ReadTimeout:  this.ReadTimeout  * time.Second,
+        WriteTimeout: this.WriteTimeout * time.Second,
+    }
+    
     return nil
 }
 
 func (this *VascWebServer) Start() error {
-    go func() {
-        for counter:=0; counter < this.ListenRetry; counter++ {
-            if err := this.HttpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-                fmt.Printf("listen[%d] %s failed: %v\n", counter, this.ListenAddr, err)
-                time.Sleep(time.Second)
-            }
+    address := []byte(this.ListenAddr)
+    if len(address) <= 4 {
+        return errors.New("Invalid protocol")
+    } else if string(address[0:7]) == "unix://" {
+        location := string(address[7:])
+        os.Remove(location)
+        
+        unixAddr, err := net.ResolveUnixAddr("unix", location)
+        if err != nil{
+           return err
         }
-    }()
+        
+        listener, err := net.ListenUnix("unix", unixAddr)
+        if err != nil{
+            return err
+        }
+        go this.HttpServer.Serve(listener)
+    } else if string(address[0:7]) == "http://" {
+        this.HttpServer.Addr = string(address[7:])
+        go func() {
+            for counter:=0; counter < this.ListenRetry; counter++ {
+                if err := this.HttpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+                    fmt.Printf("listen[%d] %s failed: %v\n", counter, this.ListenAddr, err)
+                    time.Sleep(time.Second)
+                }
+            }
+        }()
+    } else {
+        return errors.New("Invalid listen address")
+    }
     
-	return nil
+    return nil
 }
 
 func (this *VascWebServer) CheckService() error {
@@ -113,93 +138,93 @@ func (this *VascWebServer) LoadModules(modules []global.VascRoute, groups []glob
     groupMap := make(map[string][]global.VascRoute)
     other  := make([]global.VascRoute, 0)
     
-	for i := 0; i < len(modules); i++ {
-	    handler := app.FuncMap[modules[i].HandlerName]
+    for i := 0; i < len(modules); i++ {
+        handler := app.FuncMap[modules[i].HandlerName]
         if handler!=nil {
             modules[i].RouteHandler = handler.(func(*gin.Context))
         } else {
             modules[i].RouteHandler = ErrorHandler
         }
         
-	    if modules[i].Group!="" {
-	        head := groupMap[modules[i].Group]
-	        if head==nil {
-	            head = make([]global.VascRoute, 0)
-	        }
-	        head = append(head, modules[i])
-	        groupMap[modules[i].Group] = head
-	    } else {
-	        other = append(other, modules[i])
-	    }
-	}
-	
-	for groupName, group := range groupMap {
-	    groupCore := this.ServiceCore.Group(groupName)
-	    groupInfo := findGroupInfo(groups, groupName)
-	    if groupInfo!=nil {
-	        groupMiddleware := app.FuncMap[groupInfo.MiddlewareName]
-	        if groupMiddleware!=nil {
-	            groupCore.Use(groupMiddleware.(func(*gin.Context)))
-	        } else {
-	            groupCore.Use(DefaultMiddleware)
-	        }
-	    }
-	    
-	    for _, route := range group {
-    		switch route.Method {
-        		case "GET":
-        			groupCore.GET(route.Route, route.RouteHandler)
-        		case "POST":
-        			groupCore.POST(route.Route, route.RouteHandler)
-        		case "OPTIONS":
-        			groupCore.OPTIONS(route.Route, route.RouteHandler)
-        		case "PUT":
-        			groupCore.PUT(route.Route, route.RouteHandler)
-        		case "DELETE":
-        			groupCore.DELETE(route.Route, route.RouteHandler)
-        		case "PATCH":
-        			groupCore.PATCH(route.Route, route.RouteHandler)
-        		case "HEAD":
-        			groupCore.HEAD(route.Route, route.RouteHandler)
-                case "ANY":
-                    groupCore.Any(route.Route, route.RouteHandler)
-        		case "FILE":
-        			groupCore.StaticFS(route.Route, http.Dir(route.LocalFilePath))
-        		default:
-        			continue
+        if modules[i].Group!="" {
+            head := groupMap[modules[i].Group]
+            if head==nil {
+                head = make([]global.VascRoute, 0)
+            }
+            head = append(head, modules[i])
+            groupMap[modules[i].Group] = head
+        } else {
+            other = append(other, modules[i])
+        }
+    }
+    
+    for groupName, group := range groupMap {
+        groupCore := this.ServiceCore.Group(groupName)
+        groupInfo := findGroupInfo(groups, groupName)
+        if groupInfo!=nil {
+            groupMiddleware := app.FuncMap[groupInfo.MiddlewareName]
+            if groupMiddleware!=nil {
+                groupCore.Use(groupMiddleware.(func(*gin.Context)))
+            } else {
+                groupCore.Use(DefaultMiddleware)
             }
         }
-	}
-	
-	for _, routeItem := range other {
-	    switch routeItem.Method {
-    		case "GET":
-    			this.ServiceCore.GET(routeItem.Route, routeItem.RouteHandler)
-    		case "POST":
-    			this.ServiceCore.POST(routeItem.Route, routeItem.RouteHandler)
-    		case "OPTIONS":
-    			this.ServiceCore.OPTIONS(routeItem.Route, routeItem.RouteHandler)
-    		case "PUT":
-    			this.ServiceCore.PUT(routeItem.Route, routeItem.RouteHandler)
-    		case "DELETE":
-    			this.ServiceCore.DELETE(routeItem.Route, routeItem.RouteHandler)
-    		case "PATCH":
-    			this.ServiceCore.PATCH(routeItem.Route, routeItem.RouteHandler)
-    		case "HEAD":
-    			this.ServiceCore.HEAD(routeItem.Route, routeItem.RouteHandler)
+        
+        for _, route := range group {
+            switch route.Method {
+                case "GET":
+                    groupCore.GET(route.Route, route.RouteHandler)
+                case "POST":
+                    groupCore.POST(route.Route, route.RouteHandler)
+                case "OPTIONS":
+                    groupCore.OPTIONS(route.Route, route.RouteHandler)
+                case "PUT":
+                    groupCore.PUT(route.Route, route.RouteHandler)
+                case "DELETE":
+                    groupCore.DELETE(route.Route, route.RouteHandler)
+                case "PATCH":
+                    groupCore.PATCH(route.Route, route.RouteHandler)
+                case "HEAD":
+                    groupCore.HEAD(route.Route, route.RouteHandler)
+                case "ANY":
+                    groupCore.Any(route.Route, route.RouteHandler)
+                case "FILE":
+                    groupCore.StaticFS(route.Route, http.Dir(route.LocalFilePath))
+                default:
+                    continue
+            }
+        }
+    }
+    
+    for _, routeItem := range other {
+        switch routeItem.Method {
+            case "GET":
+                this.ServiceCore.GET(routeItem.Route, routeItem.RouteHandler)
+            case "POST":
+                this.ServiceCore.POST(routeItem.Route, routeItem.RouteHandler)
+            case "OPTIONS":
+                this.ServiceCore.OPTIONS(routeItem.Route, routeItem.RouteHandler)
+            case "PUT":
+                this.ServiceCore.PUT(routeItem.Route, routeItem.RouteHandler)
+            case "DELETE":
+                this.ServiceCore.DELETE(routeItem.Route, routeItem.RouteHandler)
+            case "PATCH":
+                this.ServiceCore.PATCH(routeItem.Route, routeItem.RouteHandler)
+            case "HEAD":
+                this.ServiceCore.HEAD(routeItem.Route, routeItem.RouteHandler)
             case "ANY":
                 this.ServiceCore.Any(routeItem.Route, routeItem.RouteHandler)
-    		case "FILE":
-    			this.ServiceCore.StaticFS(routeItem.Route, http.Dir(routeItem.LocalFilePath))
-    		default:
-    			continue
+            case "FILE":
+                this.ServiceCore.StaticFS(routeItem.Route, http.Dir(routeItem.LocalFilePath))
+            default:
+                continue
         }
-	}
-	
-	if this.Monitor {
-	    this.ServiceCore.Any("/monitor", MonitorHandler)
-	}
-	return nil
+    }
+    
+    if this.Monitor {
+        this.ServiceCore.Any("/monitor", MonitorHandler)
+    }
+    return nil
 }
 
 func DefaultMiddleware(c *gin.Context) {
