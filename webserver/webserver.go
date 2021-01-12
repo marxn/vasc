@@ -71,8 +71,8 @@ func (this *VascWebServer) Start() error {
     address := []byte(this.ListenAddr)
     if len(address) <= 4 {
         return errors.New("Invalid protocol")
-    } else if string(address[0:7]) == "unix://" {
-        location := string(address[7:])
+    } else if string(address[0:5]) == "unix:" {
+        location := string(address[5:])
         os.Remove(location)
         
         unixAddr, err := net.ResolveUnixAddr("unix", location)
@@ -85,8 +85,8 @@ func (this *VascWebServer) Start() error {
             return err
         }
         go this.HttpServer.Serve(listener)
-    } else if string(address[0:7]) == "http://" {
-        this.HttpServer.Addr = string(address[7:])
+    } else if string(address[0:4]) == "tcp:" {
+        this.HttpServer.Addr = string(address[4:])
         go func() {
             for counter:=0; counter < this.ListenRetry; counter++ {
                 if err := this.HttpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
