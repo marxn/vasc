@@ -7,6 +7,7 @@ import "time"
 import "net/http"
 import "context"
 import "errors"
+import "log/syslog"
 import "github.com/gin-gonic/gin"
 import "github.com/marxn/vasc/global"
 import "github.com/marxn/vasc/utils"
@@ -28,8 +29,34 @@ func (this *VascWebServer) LoadConfig(config *global.WebServerConfig, projectNam
     this.ProjectName = projectName
     
     gin.SetMode(gin.ReleaseMode)
-    engine := gin.New()  
-    engine.Use(gin.Recovery())  
+    
+    var engine *gin.Engine
+    if config.EnableLogger {
+        logWriter, err := syslog.New(syslog.LOG_INFO|syslog.LOG_LOCAL6, projectName + "/_gin")
+        if err != nil {
+            return err
+        }
+        gin.DefaultWriter = logWriter
+        gin.DisableConsoleColor()
+        
+        engine := gin.New()  
+        engine.Use(gin.Recovery())  
+        engine.Use(gin.Logger())
+        engine.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
+    		return fmt.Sprintf("%s %s %s %s %d %s \"%s\"\n",
+    				param.ClientIP,
+    				param.Method,
+    				param.Path,
+    				param.Request.Proto,
+    				param.StatusCode,
+    				param.Latency,
+    				param.ErrorMessage,
+    		)
+    	}))
+    } else {
+        engine := gin.New()  
+        engine.Use(gin.Recovery())  
+    }
     
     this.ServiceCore     = engine
     this.ProjectName     = projectName

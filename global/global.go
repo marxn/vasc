@@ -4,6 +4,7 @@ import "github.com/gin-gonic/gin"
 
 type WebServerConfig struct {
     Enable            bool           `json:"enable"`
+    EnableLogger      bool           `json:"enable_logger"`
     ListenAddr        string         `json:"listen_address"`
     ListenRetry       int            `json:"listen_retry"`
     ReadTimeout       int            `json:"read_timeout"`
