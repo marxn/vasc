@@ -39,22 +39,11 @@ func (this *VascWebServer) LoadConfig(config *global.WebServerConfig, projectNam
         gin.DefaultWriter = logWriter
         gin.DisableConsoleColor()
         
-        engine := gin.New()  
-        engine.Use(gin.Recovery())  
+        engine = gin.New()  
+        engine.Use(gin.Recovery())
         engine.Use(gin.Logger())
-        engine.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
-    		return fmt.Sprintf("%s %s %s %s %d %s \"%s\"\n",
-    				param.ClientIP,
-    				param.Method,
-    				param.Path,
-    				param.Request.Proto,
-    				param.StatusCode,
-    				param.Latency,
-    				param.ErrorMessage,
-    		)
-    	}))
     } else {
-        engine := gin.New()  
+        engine = gin.New()  
         engine.Use(gin.Recovery())  
     }
     
