@@ -100,7 +100,15 @@ func (this *VascWebServer) Start() error {
         if err != nil{
             return err
         }
-        go this.HttpServer.Serve(listener)
+        
+        go func() {
+            for counter:=0; counter < this.ListenRetry; counter++ {
+                if err := this.HttpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
+                    fmt.Printf("listen unix sock file [%d] %s failed: %v\n", counter, location, err)
+                    time.Sleep(time.Second)
+                }
+            }
+        }()
     } else if string(address[0:4]) == "tcp:" {
         this.HttpServer.Addr = string(address[4:])
         go func() {
