@@ -20,7 +20,7 @@ func (this *VascDataBase) LoadConfig(config *global.DatabaseConfig, projectName 
     
     var logger *xorm.SimpleLogger
     if config.EnableLogger {
-        logWriter, err := syslog.New(syslog.LOG_INFO|syslog.LOG_LOCAL6, projectName + "/_sql")
+        logWriter, err := syslog.New(syslog.LOG_INFO|syslog.LOG_LOCAL6, projectName + "/_xorm")
         if err != nil {
             return err
         }

@@ -4,6 +4,7 @@ import (
     "flag"
     "fmt"
     "os"
+    "sync"
     "errors"
     "syscall"
     "os/signal"
@@ -16,6 +17,7 @@ import (
     "github.com/marxn/vasc/scheduler"
     "github.com/marxn/vasc/task"
     "github.com/marxn/vasc/localcache"
+    "github.com/marxn/vasc/logger"
 )
 
 const VASC_NONE      = 0x0
@@ -43,6 +45,10 @@ var environment     *string
 var mode            *string
 var initializer      func() error
 var vascLogLevel     string
+
+// Global logger referenced by default logging
+var loggerMapper    map[string]*logger.VascLogger
+var loggerMapMutex  sync.Mutex
 
 func GetProjectName() string {
     return *project
@@ -264,4 +270,52 @@ func VascReloader() {
     }
     vascInstance.Scheduler.ReloadSchedule()
     vascInstance.Task.ReloadTaskList()
+}
+
+func LogSelector(subsystem string) *logger.VascLogger {
+    var logLevel int
+    switch vascLogLevel {
+        case "debug":
+            logLevel = logger.LOG_DEBUG
+        case "info":
+            logLevel = logger.LOG_INFO
+        case "warning":
+            logLevel = logger.LOG_WARN
+        case "error":
+            logLevel = logger.LOG_ERROR
+        default:
+            logLevel = logger.LOG_DEBUG
+    }
+    
+    loggerMapMutex.Lock()
+	defer loggerMapMutex.Unlock()
+	
+	if loggerMapper == nil {
+	    loggerMapper = make(map[string]*logger.VascLogger)
+    }
+	
+	result := loggerMapper[subsystem]
+	if result == nil {
+	    result = logger.NewVascLogger(GetProjectName(), logLevel, subsystem)
+        loggerMapper[subsystem] = result
+    }
+    
+    return result
+}
+
+//Some simple encapsulations
+func ErrorLog(format string, v ...interface{}) {
+    LogSelector("main").ErrorLog(format, v...)
+}
+
+func InfoLog(format string, v ...interface{}) {
+    LogSelector("main").InfoLog(format, v...)
+}
+
+func WarnLog(format string, v ...interface{}) {
+    LogSelector("main").WarnLog(format, v...)
+}
+
+func DebugLog(format string, v ...interface{}) {
+    LogSelector("main").DebugLog(format, v...)
 }
