@@ -93,7 +93,7 @@ func (this *VascWebServer) Start() error {
         
         unixAddr, err := net.ResolveUnixAddr("unix", location)
         if err != nil{
-           return err
+            return err
         }
         
         listener, err := net.ListenUnix("unix", unixAddr)
@@ -103,9 +103,9 @@ func (this *VascWebServer) Start() error {
         
         go func() {
             for counter:=0; counter < this.ListenRetry; counter++ {
+                time.Sleep(time.Second * 3)
                 if err := this.HttpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
                     fmt.Printf("listen unix sock file [%d] %s failed: %v\n", counter, location, err)
-                    time.Sleep(time.Second)
                 }
             }
         }()
