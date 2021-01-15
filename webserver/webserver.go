@@ -88,6 +88,10 @@ func (this *VascWebServer) Start() error {
     if len(address) <= 4 {
         return errors.New("Invalid protocol")
     } else if string(address[0:5]) == "unix:" {
+        
+        // Wait a moment in case of listen error - why?
+        time.Sleep(time.Second * 3)
+        
         location := string(address[5:])
         os.Remove(location)
         
@@ -102,11 +106,8 @@ func (this *VascWebServer) Start() error {
         }
         
         go func() {
-            for counter:=0; counter < this.ListenRetry; counter++ {
-                time.Sleep(time.Second * 3)
-                if err := this.HttpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
-                    fmt.Printf("listen unix sock file [%d] %s failed: %v\n", counter, location, err)
-                }
+            if err := this.HttpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
+                fmt.Printf("listen unix sock file [%s] failed: %v\n", location, err)
             }
         }()
     } else if string(address[0:4]) == "tcp:" {
