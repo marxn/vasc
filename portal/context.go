@@ -3,21 +3,39 @@ package portal
 import "time"
 import "sync"
 import "math/rand"
+import "context"
 import "github.com/gin-gonic/gin"
 import "github.com/marxn/vasc/logger"
 
-type VascContext struct {
+type Portal struct {
     ProjectName     string
     TxID            uint64
+    Context         context.Context
     HttpContext    *gin.Context
     LogLevel        int
     LoggerMap       map[string]*logger.VascLogger
     LoggerMapMutex  sync.Mutex
 }
 
-func NewVascContext(projectName string) *VascContext {
+func MakeGinRouteWithContext(projectName string, payload func(*Portal), parent context.Context) func(c *gin.Context) {
+    // return a wrapper for handling http request
+    return func(c *gin.Context) {
+        ctx, cancelFunc := context.WithCancel(parent)
+        defer cancelFunc()
+        
+        vContext := NewVascContext(projectName)
+        vContext.Context     = ctx
+        vContext.HttpContext = c
+        
+        // Do handling
+        payload(vContext)
+        vContext.Close()
+    }
+}
+
+func NewVascContext(projectName string) *Portal {
     rand.Seed(time.Now().Unix())
-    result := &VascContext{
+    result := &Portal{
         ProjectName: projectName,
         LogLevel   : logger.LOG_DEBUG,
         TxID       : rand.Uint64(), 
@@ -27,7 +45,7 @@ func NewVascContext(projectName string) *VascContext {
     return result
 }
 
-func (ctx *VascContext) Close() {
+func (ctx *Portal) Close() {
     ctx.LoggerMapMutex.Lock()
 	defer ctx.LoggerMapMutex.Unlock()
 	
@@ -36,7 +54,7 @@ func (ctx *VascContext) Close() {
 	}
 }
 
-func (ctx *VascContext) Logger(subsystem string) *logger.VascLogger {
+func (ctx *Portal) Logger(subsystem string) *logger.VascLogger {
     ctx.LoggerMapMutex.Lock()
 	defer ctx.LoggerMapMutex.Unlock()
 	

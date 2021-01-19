@@ -11,18 +11,18 @@ import "log/syslog"
 import "github.com/gin-gonic/gin"
 import "github.com/marxn/vasc/global"
 import "github.com/marxn/vasc/utils"
+import "github.com/marxn/vasc/portal"
 
 type VascWebServer struct {
     ProjectName     string
     ServiceCore    *gin.Engine
-    Context         context.Context
-    CancelFunc      context.CancelFunc
     ListenRetry     int
     ListenAddr      string
     ReadTimeout     time.Duration
     WriteTimeout    time.Duration
     Monitor         bool
     HttpServer     *http.Server
+    Done            chan struct{}
 }
 
 func (this *VascWebServer) LoadConfig(config *global.WebServerConfig, projectName string) error {
@@ -54,22 +54,17 @@ func (this *VascWebServer) LoadConfig(config *global.WebServerConfig, projectNam
     this.ReadTimeout     = time.Duration(config.ReadTimeout)
     this.WriteTimeout    = time.Duration(config.WriteTimeout)
     this.Monitor         = config.Monitor
-    
-    ctx, cancel := context.WithTimeout(context.Background(), 50 * time.Millisecond)
-    this.Context    = ctx
-    this.CancelFunc = cancel
+    this.Done            = make(chan struct{})
     
     return this.InitWebserver()
 }
 
 func (this *VascWebServer) Close() {
-    if err := this.HttpServer.Shutdown(this.Context); err==nil {   
-        select {
-            case <-this.Context.Done():
-        }
-    }
-    this.CancelFunc()
-    this.HttpServer.Close()
+    ctx, cancel := context.WithTimeout(context.Background(), 2 * time.Second)
+	defer cancel()
+	
+    this.HttpServer.Shutdown(ctx)
+    close(this.Done)
 }
 
 func (this *VascWebServer) InitWebserver() error {
@@ -108,7 +103,8 @@ func (this *VascWebServer) Start() error {
         go func() {
             if err := this.HttpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
                 fmt.Printf("listen unix sock file [%s] failed: %v\n", location, err)
-            }
+            } 
+            <-this.Done
         }()
     } else if string(address[0:4]) == "tcp:" {
         this.HttpServer.Addr = string(address[4:])
@@ -117,7 +113,11 @@ func (this *VascWebServer) Start() error {
                 if err := this.HttpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
                     fmt.Printf("listen[%d] %s failed: %v\n", counter, this.ListenAddr, err)
                     time.Sleep(time.Second)
+                } else {
+                    <-this.Done
+                    break
                 }
+                
             }
         }()
     } else {
@@ -164,9 +164,17 @@ func (this *VascWebServer) LoadModules(modules []global.VascRoute, groups []glob
     other  := make([]global.VascRoute, 0)
     
     for i := 0; i < len(modules); i++ {
-        handler := app.FuncMap[modules[i].HandlerName]
-        if handler!=nil {
-            modules[i].RouteHandler = handler.(func(*gin.Context))
+        handlerName := modules[i].HandlerName
+        handlerFunc := app.FuncMap[handlerName]
+        if handlerFunc!=nil {
+            switch handlerFunc.(type) {
+                case func(*portal.Portal):
+                    modules[i].RouteHandler = portal.MakeGinRouteWithContext(this.ProjectName, handlerFunc.(func(*portal.Portal)), context.Background())
+                case func(*gin.Context):
+                    modules[i].RouteHandler = handlerFunc.(func(*gin.Context))
+                default:
+                    modules[i].RouteHandler = ErrorHandler
+            }
         } else {
             modules[i].RouteHandler = ErrorHandler
         }
