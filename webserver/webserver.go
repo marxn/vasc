@@ -10,7 +10,6 @@ import "errors"
 import "log/syslog"
 import "github.com/gin-gonic/gin"
 import "github.com/marxn/vasc/global"
-import "github.com/marxn/vasc/utils"
 import "github.com/marxn/vasc/portal"
 
 type VascWebServer struct {
@@ -20,7 +19,6 @@ type VascWebServer struct {
     ListenAddr      string
     ReadTimeout     time.Duration
     WriteTimeout    time.Duration
-    Monitor         bool
     HttpServer     *http.Server
     Done            chan struct{}
 }
@@ -53,7 +51,6 @@ func (this *VascWebServer) LoadConfig(config *global.WebServerConfig, projectNam
     this.ListenAddr      = config.ListenAddr
     this.ReadTimeout     = time.Duration(config.ReadTimeout)
     this.WriteTimeout    = time.Duration(config.WriteTimeout)
-    this.Monitor         = config.Monitor
     this.Done            = make(chan struct{})
     
     return this.InitWebserver()
@@ -127,25 +124,6 @@ func (this *VascWebServer) Start() error {
     return nil
 }
 
-func (this *VascWebServer) CheckService() error {
-    if !this.Monitor {
-        return nil
-    }
-    cmd := fmt.Sprintf("curl http://%s/monitor", this.ListenAddr)
-    
-    for errCount := 0; errCount < this.ListenRetry + 5; errCount++ {
-        _, err := utils.ExecShellCmd(cmd)
-        if err!=nil {
-            errCount++
-        }
-        if errCount==this.ListenRetry + 5 {
-            return err
-        }
-        time.Sleep(time.Second)
-    }
-    return nil
-}
-
 func findGroupInfo(groups []global.VascRouteGroup, name string) *global.VascRouteGroup {
     for _, value := range groups {
         if value.Group==name {
@@ -173,7 +151,7 @@ func (this *VascWebServer) LoadModules(modules []global.VascRoute, groups []glob
                 case func(*gin.Context):
                     modules[i].RouteHandler = handlerFunc.(func(*gin.Context))
                 default:
-                    modules[i].RouteHandler = ErrorHandler
+                    modules[i].RouteHandler = InvalidHandler
             }
         } else {
             modules[i].RouteHandler = ErrorHandler
@@ -197,7 +175,14 @@ func (this *VascWebServer) LoadModules(modules []global.VascRoute, groups []glob
         if groupInfo!=nil {
             groupMiddleware := app.FuncMap[groupInfo.MiddlewareName]
             if groupMiddleware!=nil {
-                groupCore.Use(groupMiddleware.(func(*gin.Context)))
+                switch groupMiddleware.(type) {
+                    case func(*portal.Portal):
+                        groupCore.Use(portal.MakeGinRouteWithContext(this.ProjectName, groupMiddleware.(func(*portal.Portal)), context.Background()))
+                    case func(*gin.Context):
+                        groupCore.Use(groupMiddleware.(func(*gin.Context)))
+                    default:
+                        groupCore.Use(InvalidHandler)
+                }
             } else {
                 groupCore.Use(DefaultMiddleware)
             }
@@ -253,10 +238,7 @@ func (this *VascWebServer) LoadModules(modules []global.VascRoute, groups []glob
                 continue
         }
     }
-    
-    if this.Monitor {
-        this.ServiceCore.Any("/monitor", MonitorHandler)
-    }
+
     return nil
 }
 
@@ -265,9 +247,9 @@ func DefaultMiddleware(c *gin.Context) {
 }
 
 func ErrorHandler(c *gin.Context) {
-    c.JSON(501, gin.H{"error": gin.H{"code": 501, "message": "Invalid handler"}})
+    c.JSON(403, gin.H{"error": gin.H{"code": 501, "message": "Empty handler"}})
 }
 
-func MonitorHandler(c *gin.Context) {
-    c.JSON(200, gin.H{"error": gin.H{"code": 200, "message": "OK"}})
+func InvalidHandler(c *gin.Context) {
+    c.JSON(403, gin.H{"error": gin.H{"code": 501, "message": "Invalid handler prototype"}})
 }

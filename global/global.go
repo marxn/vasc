@@ -64,7 +64,7 @@ type ScheduleConfig struct {
 
 type ScheduleInfo struct {
     Key         string                   `json:"schedule_key"`  
-    Routine     func (interface{}) error `json:"-"`
+    Routine     func () error            `json:"-"`
     HandlerName string                   `json:"handler"`
     Type        uint64                   `json:"type"`
     Timestamp   int64                    `json:"timestamp"`  
