@@ -4,6 +4,7 @@ import "time"
 import "sync"
 import "math/rand"
 import "context"
+import "errors"
 import "github.com/gin-gonic/gin"
 import "github.com/marxn/vasc/logger"
 
@@ -15,6 +16,12 @@ type Portal struct {
     LogLevel        int
     LoggerMap       map[string]*logger.VascLogger
     LoggerMapMutex  sync.Mutex
+}
+
+type TaskContent struct {
+    ProjectName       string      `json:"project_name"`
+    CreateTime        int64       `json:"create_time"`
+    Content         []byte        `json:"content"`
 }
 
 func MakeGinRouteWithContext(projectName string, payload func(*Portal), parent context.Context) func(c *gin.Context) {
@@ -34,7 +41,7 @@ func MakeGinRouteWithContext(projectName string, payload func(*Portal), parent c
 }
 
 func MakeSchedulePortalWithContext(projectName string, scheduleKey string, payload func(*Portal) error, parent context.Context) func() error {
-    // return a wrapper for handling common request
+    // return a wrapper for handling schedule
     return func() error {
         ctx, cancelFunc := context.WithCancel(parent)
         defer cancelFunc()
@@ -48,14 +55,43 @@ func MakeSchedulePortalWithContext(projectName string, scheduleKey string, paylo
         err := payload(vContext)
         
         endTime := time.Now().UnixNano()
-        vContext.Logger("_schedule").ErrorLog("%s: cost[%d], result[%v]", scheduleKey, (endTime - startTime) / 1e6, err)
+        if err != nil {
+            vContext.Logger("_schedule").ErrorLog("%s: cost[%d ms], result[%v]", scheduleKey, (endTime - startTime) / 1e6, err)
+        } else {
+            vContext.Logger("_schedule").InfoLog("%s: cost[%d ms], result[%v]", scheduleKey, (endTime - startTime) / 1e6, err)
+        }
         
         vContext.Close()
         return err
     }
 }
 
-
+func MakeTaskHandlerWithContext(projectName string, taskKey string, payload func(*Portal) error, content *TaskContent, parent context.Context) func() error {
+    // return a wrapper for handling underlying task
+    return func() error {
+        ctx, cancelFunc := context.WithCancel(parent)
+        defer cancelFunc()
+        
+        vContext := NewVascContext(projectName)
+        vContext.Context      = ctx
+        vContext.containerCtx = content
+        
+        startTime := time.Now().UnixNano()
+        
+        // Call scheduled func
+        err := payload(vContext)
+        
+        endTime := time.Now().UnixNano()
+        if err != nil {
+            vContext.Logger("_task").ErrorLog("%s: cost[%d ms], result[%v]", taskKey, (endTime - startTime) / 1e6, err)
+        } else {
+            vContext.Logger("_task").InfoLog("%s: cost[%d ms], result[%v]", taskKey, (endTime - startTime) / 1e6, err)
+        }
+        
+        vContext.Close()
+        return err
+    }
+}
 
 func NewVascContext(projectName string) *Portal {
     rand.Seed(time.Now().Unix())
@@ -70,6 +106,14 @@ func NewVascContext(projectName string) *Portal {
 
 func (ctx *Portal) HttpContext() *gin.Context {
     return ctx.containerCtx.(*gin.Context)
+}
+
+func (ctx *Portal) TaskContent() (*TaskContent, error) {
+    taskContent := ctx.containerCtx.(*TaskContent)
+    if taskContent == nil {
+        return nil, errors.New("Invalid task")
+    }
+    return taskContent, nil
 }
 
 func (ctx *Portal) Close() {

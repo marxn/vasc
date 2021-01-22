@@ -4,11 +4,14 @@ import "fmt"
 import "errors"
 import "sync"
 import "time"
+import "context"
+import "encoding/json"
 import "github.com/go-xorm/xorm"
 import "github.com/garyburd/redigo/redis"
 import "github.com/marxn/vasc/global" 
 import vredis "github.com/marxn/vasc/redis" 
 import "github.com/marxn/vasc/database" 
+import "github.com/marxn/vasc/portal" 
 
 const VASC_TASK_SCOPE_NATIVE = 1
 const VASC_TASK_SCOPE_HOST   = 2
@@ -73,13 +76,25 @@ func (this * VascTask) Close() {
     this.taskWaitGroup.Wait()
 }
 
+func (this * VascTask) WrapHandler(taskInfo *global.TaskInfo, taskContent *portal.TaskContent) func()error {
+    switch taskInfo.Handler.(type) {
+        case func(*portal.Portal)error:
+            return portal.MakeTaskHandlerWithContext(this.ProjectName, taskInfo.Key, taskInfo.Handler.(func(*portal.Portal)error), taskContent, context.Background())
+        default:
+            return portal.MakeTaskHandlerWithContext(this.ProjectName, taskInfo.Key, InvalidTaskHandler, taskContent, context.Background())
+    }
+}
+
 func (this * VascTask) taskHandler(taskInfo *global.TaskInfo) {
     if taskInfo.Scope==VASC_TASK_SCOPE_NATIVE {
         for ;this.runnable && !this.needReload; {
             select {
                 case task := <- taskInfo.TaskQueue:
                     if task!=nil {
-                        taskInfo.Handler(task)
+                        handler := this.WrapHandler(taskInfo, task.(*portal.TaskContent))
+                        if handler != nil {
+                            handler()
+                        }
                     }
                 default:
                     time.Sleep(time.Millisecond * 100)
@@ -91,7 +106,10 @@ func (this * VascTask) taskHandler(taskInfo *global.TaskInfo) {
             queueName := taskInfo.Key
             content, err := this.getTaskFromRedis(queueName, 1)
             if content!=nil && err==nil {
-                taskInfo.Handler(content)
+                handler := this.WrapHandler(taskInfo, content)
+                if handler != nil {
+                    handler()
+                }
             } else if err!=nil {
                 time.Sleep(time.Millisecond * 100)
                 //fmt.Printf("cannot get task [%s] from redis: %v\n", taskInfo.Key, err)
@@ -221,15 +239,21 @@ func (this * VascTask) Bootstrap() {
     this.DBConn.Sync2(new(VascTaskDB))
 }
 
-func (this *VascTask) PushNativeTask(key string, content interface{}) error {
+func (this *VascTask) PushNativeTask(key string, content []byte) error {
     info := this.TaskList[key]
     if info==nil {
         return errors.New("invalid task")
     } 
     
+    taskContent := &portal.TaskContent{
+        ProjectName: this.ProjectName,
+        CreateTime:  time.Now().UnixNano(),
+        Content:     content,
+    }
+    
     for ;this.runnable && !this.needReload; {
         select {
-            case info.TaskQueue <- content:
+            case info.TaskQueue <- taskContent:
                 return nil
             default:
                 time.Sleep(time.Millisecond * 100)
@@ -239,11 +263,12 @@ func (this *VascTask) PushNativeTask(key string, content interface{}) error {
     return nil
 }
 
-func (this *VascTask) getTaskFromRedis(key string, timeout int64) (interface{}, error) {
+func (this *VascTask) getTaskFromRedis(key string, timeout int64) (*portal.TaskContent, error) {
     if this.RedisConn==nil {
         return nil, errors.New("cannot find redis configuration for getting task")
     }
-    aKey := this.RedisPrefix + key
+    
+    aKey      := this.RedisPrefix + key
     redisConn := this.RedisConn.Get()
     defer redisConn.Close()
     
@@ -253,19 +278,24 @@ func (this *VascTask) getTaskFromRedis(key string, timeout int64) (interface{}, 
         return nil, err
     }
     
-    if ret!=nil {
+    if ret != nil {
         kv := ret.([]interface{})
-        if(len(kv)!=2) || string(kv[0].([]byte))!=aKey {
+        if len(kv) != 2 || string(kv[0].([]byte)) != aKey {
             return nil, errors.New("invalid task queue")
         }
-        result := string(kv[1].([]byte))
-        return &result, nil
+        
+        var taskContent portal.TaskContent
+        if err := json.Unmarshal(kv[1].([]byte), &taskContent); err != nil {
+            return nil, err
+        }
+        
+        return &taskContent, nil
     }
     
     return nil, err
 }
 
-func (this *VascTask) PushGlobalTask(key string, content *string) error {
+func (this *VascTask) PushGlobalTask(key string, content []byte) error {
     if this.RedisConn==nil {
         return errors.New("cannot find redis configuration for pushing task")
     }
@@ -274,7 +304,19 @@ func (this *VascTask) PushGlobalTask(key string, content *string) error {
     redisConn := this.RedisConn.Get()
     defer redisConn.Close()
     
-    _, err := redisConn.Do("RPUSH", aKey, *content)
+    taskContent := &portal.TaskContent{
+        ProjectName: this.ProjectName,
+        CreateTime:  time.Now().UnixNano(),
+        Content:     content,
+    }
+    
+    taskContentBytes, err := json.Marshal(taskContent)
+    if err != nil {
+        fmt.Println(err)
+        return err
+    }
+        
+    _, err = redisConn.Do("RPUSH", aKey, taskContentBytes)
     if err!=nil {
         fmt.Println(err)
         return err
@@ -312,4 +354,8 @@ func (this *VascTask) ReloadTaskList() error {
 func (this *VascTask) CreateNewPersistentTask(task *VascTaskDB) error {
     _, err := this.DBConn.Insert(task)
     return err
+}
+
+func InvalidTaskHandler(p * portal.Portal) error {
+    return errors.New("Invalid task prototype")
 }
