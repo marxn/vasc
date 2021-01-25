@@ -2,7 +2,6 @@ package logger
 
 import "fmt"
 import "log/syslog"
-import "runtime"
 
 const LOG_DEBUG = 0
 const LOG_INFO  = 1
@@ -19,22 +18,22 @@ func (this *VascLogger) SetTxID(txID uint64) {
     this.TxID = txID
 }
 
-func (this *VascLogger) VLogger(tag string, evt string, tid uint64, level int, s string) {
+func (this *VascLogger) VLogger(tid uint64, level int, s string) {
     if this.Logger == nil {
         return
     }
     
     switch level {
         case LOG_DEBUG:
-            this.Logger.Debug(fmt.Sprintf("tag[%s] evt[%s] [debug] tid[%x] %s", tag, evt, tid, s))
+            this.Logger.Debug(fmt.Sprintf("[debug] tid[%x] %s", tid, s))
         case LOG_INFO:
-            this.Logger.Info(fmt.Sprintf("tag[%s] evt[%s] [info] tid[%x] %s", tag, evt, tid, s))
+            this.Logger.Info(fmt.Sprintf("[info] tid[%x] %s", tid, s))
         case LOG_WARN:
-            this.Logger.Warning(fmt.Sprintf("tag[%s] evt[%s] [warning] tid[%x] %s", tag, evt, tid, s))
+            this.Logger.Warning(fmt.Sprintf("[warning] tid[%x] %s", tid, s))
         case LOG_ERROR:
-            this.Logger.Err(fmt.Sprintf("tag[%s] evt[%s] [error] tid[%x] %s", tag, evt, tid, s))
+            this.Logger.Err(fmt.Sprintf("[error] tid[%x] %s", tid, s))
         default:
-            this.Logger.Err(fmt.Sprintf("tag[%s] evt[%s] [error] tid[%x] %s", tag, evt, tid, s))
+            this.Logger.Err(fmt.Sprintf("[error] tid[%x] %s", tid, s))
     }
 }
 
@@ -44,25 +43,25 @@ func (this *VascLogger) Close() {
 
 func (this *VascLogger) ErrorLog(format string, v ...interface{}) {
     if this.LogLevel <= LOG_ERROR {
-        this.VLogger("root", FuncCaller(3), this.TxID, LOG_ERROR, fmt.Sprintf(format, v...))
+        this.VLogger(this.TxID, LOG_ERROR, fmt.Sprintf(format, v...))
     }
 }
 
 func (this *VascLogger) InfoLog(format string, v ...interface{}) {
     if this.LogLevel <= LOG_INFO {
-        this.VLogger("root", FuncCaller(3), this.TxID, LOG_INFO, fmt.Sprintf(format, v...))
+        this.VLogger(this.TxID, LOG_INFO, fmt.Sprintf(format, v...))
     }
 }
 
 func (this *VascLogger) WarnLog(format string, v ...interface{}) {
     if this.LogLevel <= LOG_WARN {
-        this.VLogger("root", FuncCaller(3), this.TxID, LOG_WARN, fmt.Sprintf(format, v...))
+        this.VLogger(this.TxID, LOG_WARN, fmt.Sprintf(format, v...))
     }
 }
 
 func (this *VascLogger) DebugLog(format string, v ...interface{}) {
     if this.LogLevel <= LOG_DEBUG {
-        this.VLogger("root", FuncCaller(3), this.TxID, LOG_DEBUG, fmt.Sprintf(format, v...))
+        this.VLogger(this.TxID, LOG_DEBUG, fmt.Sprintf(format, v...))
     }
 }
 
@@ -70,11 +69,4 @@ func NewVascLogger(projectName string, logLevel int, subsystem string) *VascLogg
     tag := projectName + "/" + subsystem
     loggerInstance, _ := syslog.New(syslog.LOG_DEBUG|syslog.LOG_LOCAL6, tag)
     return &VascLogger{LogLevel: logLevel, Logger: loggerInstance}
-}
-
-func FuncCaller(frame int) string {
-	pc := make([]uintptr, 1)
-	runtime.Callers(frame, pc)
-	f := runtime.FuncForPC(pc[0])
-	return f.Name()
 }
