@@ -128,11 +128,12 @@ func (this * VascTask) StartTaskHandling(taskInfo *global.TaskInfo) {
 }
 
 func (this * VascTask) launchTask(taskList []global.TaskInfo) error {
+    // Install task handler
     for _, info := range taskList {
         if info.Handler==nil {
             handler := this.Application.FuncMap[info.HandlerName]
             if handler!=nil {
-                info.Handler = handler.(func(interface{}) error)
+                info.Handler = handler.(*portal.TaskContent) error)
             }
         }
         if this.TaskList[info.Key]!=nil || info.Handler==nil {
