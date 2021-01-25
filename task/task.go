@@ -133,7 +133,7 @@ func (this * VascTask) launchTask(taskList []global.TaskInfo) error {
         if info.Handler==nil {
             handler := this.Application.FuncMap[info.HandlerName]
             if handler!=nil {
-                info.Handler = handler.(func (*portal.TaskContent) error)
+                info.Handler = handler.(func (*portal.Portal) error)
             }
         }
         if this.TaskList[info.Key]!=nil || info.Handler==nil {
