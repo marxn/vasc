@@ -2,6 +2,7 @@ package logger
 
 import "fmt"
 import "log/syslog"
+import "runtime"
 
 const LOG_DEBUG = 0
 const LOG_INFO  = 1
@@ -43,25 +44,25 @@ func (this *VascLogger) Close() {
 
 func (this *VascLogger) ErrorLog(format string, v ...interface{}) {
     if this.LogLevel <= LOG_ERROR {
-        this.VLogger("root", "", this.TxID, LOG_ERROR, fmt.Sprintf(format, v...))
+        this.VLogger("root", FuncCaller(3), this.TxID, LOG_ERROR, fmt.Sprintf(format, v...))
     }
 }
 
 func (this *VascLogger) InfoLog(format string, v ...interface{}) {
     if this.LogLevel <= LOG_INFO {
-        this.VLogger("root", "", this.TxID, LOG_INFO, fmt.Sprintf(format, v...))
+        this.VLogger("root", FuncCaller(3), this.TxID, LOG_INFO, fmt.Sprintf(format, v...))
     }
 }
 
 func (this *VascLogger) WarnLog(format string, v ...interface{}) {
     if this.LogLevel <= LOG_WARN {
-        this.VLogger("root", "", this.TxID, LOG_WARN, fmt.Sprintf(format, v...))
+        this.VLogger("root", FuncCaller(3), this.TxID, LOG_WARN, fmt.Sprintf(format, v...))
     }
 }
 
 func (this *VascLogger) DebugLog(format string, v ...interface{}) {
     if this.LogLevel <= LOG_DEBUG {
-        this.VLogger("root", "", this.TxID, LOG_DEBUG, fmt.Sprintf(format, v...))
+        this.VLogger("root", FuncCaller(3), this.TxID, LOG_DEBUG, fmt.Sprintf(format, v...))
     }
 }
 
@@ -69,4 +70,11 @@ func NewVascLogger(projectName string, logLevel int, subsystem string) *VascLogg
     tag := projectName + "/" + subsystem
     loggerInstance, _ := syslog.New(syslog.LOG_DEBUG|syslog.LOG_LOCAL6, tag)
     return &VascLogger{LogLevel: logLevel, Logger: loggerInstance}
+}
+
+func FuncCaller(frame int) string {
+	pc := make([]uintptr, 1)
+	runtime.Callers(frame, pc)
+	f := runtime.FuncForPC(pc[0])
+	return f.Name()
 }
