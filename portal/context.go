@@ -3,6 +3,7 @@ package portal
 import "fmt"
 import "time"
 import "sync"
+import "strconv"
 import "math/rand"
 import "context"
 import "errors"
@@ -35,8 +36,14 @@ func MakeGinRouteWithContext(projectName string, payload func(*Portal), parent c
         vContext.Context      = ctx
         vContext.containerCtx = c
         
-        // Save TxID in order to use customized logger
-        c.Request.Header["X-Vasc-Request-Tracer"] = []string{fmt.Sprintf("%016x", vContext.TxID)}
+        tracer := c.Request.Header.Get("X-Vasc-Request-Tracer")
+        if tracer != "" {
+            txID, _ := strconv.ParseUint(tracer, 16, 64)
+            vContext.SetTID(txID)
+        } else {
+            // Save TxID in order to use customized logger
+            c.Request.Header.Set("X-Vasc-Request-Tracer", fmt.Sprintf("%016x", vContext.TxID))
+        }
         
         // Do handling
         payload(vContext)
