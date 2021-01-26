@@ -35,8 +35,8 @@ func MakeGinRouteWithContext(projectName string, payload func(*Portal), parent c
         vContext.Context      = ctx
         vContext.containerCtx = c
         
-        // Save TxID in order to use customed logger
-        c.Request.Header["X-Vasc-Request-Tracer"] = []string{fmt.Sprintf("%d", vContext.TxID)}
+        // Save TxID in order to use customized logger
+        c.Request.Header["X-Vasc-Request-Tracer"] = []string{fmt.Sprintf("%016x", vContext.TxID)}
         
         // Do handling
         payload(vContext)
