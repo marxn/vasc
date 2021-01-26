@@ -39,7 +39,23 @@ func (this *VascWebServer) LoadConfig(config *global.WebServerConfig, projectNam
         
         engine = gin.New()  
         engine.Use(gin.Recovery())
-        engine.Use(gin.Logger())
+        engine.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
+            var txID uint64
+            if param.Keys["VascTraceID"] == nil {
+                txID = param.Keys["VascTraceID"].(uint64)
+            }
+            
+    		return fmt.Sprintf("tid[%d] %s %s %s %s %d %s \"%s\"\n",
+    		        txID,
+    				param.ClientIP,
+    				param.Method,
+    				param.Path,
+    				param.Request.Proto,
+    				param.StatusCode,
+    				param.Latency,
+    				param.ErrorMessage,
+    		)
+	    }))
     } else {
         engine = gin.New()  
         engine.Use(gin.Recovery())  

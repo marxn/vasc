@@ -34,6 +34,9 @@ func MakeGinRouteWithContext(projectName string, payload func(*Portal), parent c
         vContext.Context      = ctx
         vContext.containerCtx = c
         
+        // Save TxID in order to use customed logger
+        c.Keys["VascTraceID"] = vContext.TxID
+        
         // Do handling
         payload(vContext)
         vContext.Close()
@@ -102,6 +105,10 @@ func NewVascContext(projectName string) *Portal {
         LoggerMap  : make(map[string]*logger.VascLogger)}
         
     return result
+}
+
+func (ctx *Portal) SetTID(txID uint64) {
+    ctx.TxID = txID
 }
 
 func (ctx *Portal) HttpContext() *gin.Context {
