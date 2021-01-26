@@ -40,12 +40,12 @@ func (this *VascWebServer) LoadConfig(config *global.WebServerConfig, projectNam
         engine = gin.New()  
         engine.Use(gin.Recovery())
         engine.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
-            var txID uint64
-            if param.Keys["VascTraceID"] == nil {
-                txID = param.Keys["VascTraceID"].(uint64)
+            var txID string
+            if param.Request.Header["X-Vasc-Request-Tracer"] != nil {
+                txID = param.Request.Header["X-Vasc-Request-Tracer"][0]
             }
             
-    		return fmt.Sprintf("tid[%d] %s %s %s %s %d %s \"%s\"\n",
+    		return fmt.Sprintf("tid[%s] %s %s %s %s %d %s \"%s\"\n",
     		        txID,
     				param.ClientIP,
     				param.Method,

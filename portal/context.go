@@ -1,5 +1,6 @@
 package portal
 
+import "fmt"
 import "time"
 import "sync"
 import "math/rand"
@@ -35,7 +36,7 @@ func MakeGinRouteWithContext(projectName string, payload func(*Portal), parent c
         vContext.containerCtx = c
         
         // Save TxID in order to use customed logger
-        c.Keys["VascTraceID"] = vContext.TxID
+        c.Request.Header["X-Vasc-Request-Tracer"] = []string{fmt.Sprintf("%d", vContext.TxID)}
         
         // Do handling
         payload(vContext)
