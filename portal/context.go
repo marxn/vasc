@@ -105,7 +105,7 @@ func MakeTaskHandlerWithContext(projectName string, taskKey string, payload func
 }
 
 func NewVascContext(projectName string) *Portal {
-    rand.Seed(time.Now().Unix())
+    rand.Seed(time.Now().UnixNano())
     result := &Portal{
         ProjectName: projectName,
         LogLevel   : logger.LOG_DEBUG,
