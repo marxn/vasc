@@ -18,22 +18,22 @@ func (this *VascLogger) SetTxID(txID uint64) {
     this.TxID = txID
 }
 
-func (this *VascLogger) VLogger(tag string, evt string, tid uint64, level int, s string) {
+func (this *VascLogger) VLogger(tid uint64, level int, s string) {
     if this.Logger == nil {
         return
     }
     
     switch level {
         case LOG_DEBUG:
-            this.Logger.Debug(fmt.Sprintf("tag[%s] evt[%s] [debug] tid[%x] %s", tag, evt, tid, s))
+            this.Logger.Debug(fmt.Sprintf("[debug] tid[%016x] %s", tid, s))
         case LOG_INFO:
-            this.Logger.Info(fmt.Sprintf("tag[%s] evt[%s] [info] tid[%x] %s", tag, evt, tid, s))
+            this.Logger.Info(fmt.Sprintf("[info] tid[%016x] %s", tid, s))
         case LOG_WARN:
-            this.Logger.Warning(fmt.Sprintf("tag[%s] evt[%s] [warning] tid[%x] %s", tag, evt, tid, s))
+            this.Logger.Warning(fmt.Sprintf("[warning] tid[%016x] %s", tid, s))
         case LOG_ERROR:
-            this.Logger.Err(fmt.Sprintf("tag[%s] evt[%s] [error] tid[%x] %s", tag, evt, tid, s))
+            this.Logger.Err(fmt.Sprintf("[error] tid[%016x] %s", tid, s))
         default:
-            this.Logger.Err(fmt.Sprintf("tag[%s] evt[%s] [error] tid[%x] %s", tag, evt, tid, s))
+            this.Logger.Err(fmt.Sprintf("[error] tid[%016x] %s", tid, s))
     }
 }
 
@@ -43,25 +43,25 @@ func (this *VascLogger) Close() {
 
 func (this *VascLogger) ErrorLog(format string, v ...interface{}) {
     if this.LogLevel <= LOG_ERROR {
-        this.VLogger("root", "", this.TxID, LOG_ERROR, fmt.Sprintf(format, v...))
+        this.VLogger(this.TxID, LOG_ERROR, fmt.Sprintf(format, v...))
     }
 }
 
 func (this *VascLogger) InfoLog(format string, v ...interface{}) {
     if this.LogLevel <= LOG_INFO {
-        this.VLogger("root", "", this.TxID, LOG_INFO, fmt.Sprintf(format, v...))
+        this.VLogger(this.TxID, LOG_INFO, fmt.Sprintf(format, v...))
     }
 }
 
 func (this *VascLogger) WarnLog(format string, v ...interface{}) {
     if this.LogLevel <= LOG_WARN {
-        this.VLogger("root", "", this.TxID, LOG_WARN, fmt.Sprintf(format, v...))
+        this.VLogger(this.TxID, LOG_WARN, fmt.Sprintf(format, v...))
     }
 }
 
 func (this *VascLogger) DebugLog(format string, v ...interface{}) {
     if this.LogLevel <= LOG_DEBUG {
-        this.VLogger("root", "", this.TxID, LOG_DEBUG, fmt.Sprintf(format, v...))
+        this.VLogger(this.TxID, LOG_DEBUG, fmt.Sprintf(format, v...))
     }
 }
 

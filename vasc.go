@@ -210,9 +210,7 @@ func StartService() error {
     if vascInstance.BitCode & VASC_WEBSERVER != 0 {
         if err := vascInstance.WebServer.Start(); err != nil {
             return err
-        } else {
-            return vascInstance.WebServer.CheckService() 
-        }
+        } 
     }
     
     return nil

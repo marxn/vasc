@@ -48,7 +48,7 @@ type TaskConfig struct {
 type TaskInfo struct {
     Key         string                  `json:"task_key"`
     Type        uint64                  `json:"type"`
-    Handler     func(interface{}) error `json:"-"`
+    Handler     interface{}             `json:"-"`        // To generate a well-contexted handler dynamicly
     HandlerName string                  `json:"handler"`
     TaskQueue   chan(interface{})       `json:"-"`
     QueueSize   int64                   `json:"queue_size"`
@@ -64,7 +64,7 @@ type ScheduleConfig struct {
 
 type ScheduleInfo struct {
     Key         string                   `json:"schedule_key"`  
-    Routine     func (interface{}) error `json:"-"`
+    Routine     func () error            `json:"-"`
     HandlerName string                   `json:"handler"`
     Type        uint64                   `json:"type"`
     Timestamp   int64                    `json:"timestamp"`  
