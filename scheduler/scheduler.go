@@ -19,6 +19,7 @@ import "github.com/marxn/vasc/global"
 import vredis "github.com/marxn/vasc/redis" 
 import "github.com/marxn/vasc/database" 
 import "github.com/marxn/vasc/portal"
+import "github.com/marxn/vasc/logger"
 
 const VASC_SCHEDULE_FIXED      = 1
 const VASC_SCHEDULE_OVERLAPPED = 2
@@ -42,6 +43,7 @@ type VascScheduler struct {
     
     ScheduleList     []global.ScheduleInfo
     App               *global.VascApplication
+    Logger            *logger.VascLogger
 }
 
 type VascSchedulerDB struct {
@@ -62,7 +64,13 @@ func (this *VascSchedulerDB) TableName() string {
 
 func (this *VascScheduler) LoadConfig(config *global.ScheduleConfig, redisPoolList *vredis.VascRedis, dbList *database.VascDataBase, projectName string) error {
     this.ProjectName = projectName
-
+    
+    if config.EnableLogger {
+        this.Logger = logger.NewVascLogger(projectName, logger.LOG_DEBUG, "/_schedule")
+    } else {
+        this.Logger = logger.EmptyLogger()
+    }
+    
     if redisPoolList!=nil && config.GlobalLockRedis!=""{
         redis := redisPoolList.Get(config.GlobalLockRedis)
         if redis==nil {
@@ -151,7 +159,7 @@ func (this *VascScheduler) traverseCycleScheduleList () error {
                     }
                     this.ReleaseToken(key, lockValue)
                 } else {
-                    fmt.Sprintf("%s has been locked\n", key)
+                    this.Logger.InfoLog("%s has been locked\n", key)
                 }
                 this.ScheduleWaitGroup.Done()
             }(scheduleItem.Key, scheduleItem.Routine, scheduleItem.Interval)
@@ -194,9 +202,9 @@ func (this * VascScheduler) LoadSchedule(scheduleList []global.ScheduleInfo, app
 func (this * VascScheduler) WrapHandler(handler interface{}, scheduleInfo *global.ScheduleInfo) {
     switch handler.(type) {
         case func(*portal.Portal)error:
-            scheduleInfo.Routine = portal.MakeSchedulePortalWithContext(this.ProjectName, scheduleInfo.HandlerName, handler.(func(*portal.Portal)error), context.Background())
+            scheduleInfo.Routine = portal.MakeSchedulePortalWithContext(this.ProjectName, this.Logger, scheduleInfo.HandlerName, handler.(func(*portal.Portal)error), context.Background())
         default:
-            scheduleInfo.Routine = portal.MakeSchedulePortalWithContext(this.ProjectName, scheduleInfo.HandlerName, InvalidScheduleHandler, context.Background())
+            scheduleInfo.Routine = portal.MakeSchedulePortalWithContext(this.ProjectName, this.Logger, scheduleInfo.HandlerName, InvalidScheduleHandler, context.Background())
     }
 }
 
@@ -287,7 +295,7 @@ func (this *VascScheduler) StartSerialSchedule(scheduleKey string, schedule func
                     this.smartSleep(interval)
                     this.ReleaseToken(key, lockValue)
                 } else {
-                    fmt.Printf("%s has been locked\n", key)
+                    this.Logger.InfoLog("%s has been locked\n", key)
                     this.smartSleep(interval)
                 }
             }
@@ -327,7 +335,7 @@ func (this *VascScheduler) StartFixedSchedule(scheduleKey string, schedule func(
             if interval!=0 {
                 over = (now - timeline) % interval
             }
-            fmt.Printf("now=%d, timeline=%d, over=%d, next=%d\n", now, timeline, over, interval - over)
+            this.Logger.InfoLog("now=%d, timeline=%d, over=%d, next=%d\n", now, timeline, over, interval - over)
             if scope==VASC_SCHEDULE_SCOPE_NATIVE {
                 if now >= timeline {
                     if over==0 {
@@ -364,7 +372,7 @@ func (this *VascScheduler) StartFixedSchedule(scheduleKey string, schedule func(
                             }
                             this.ReleaseToken(scheduleKey, lockValue)
                         } else {
-                            fmt.Printf("%s has been locked:%d\n", scheduleKey, now)
+                            this.Logger.InfoLog("%s has been locked:%d\n", scheduleKey, now)
                             if interval==0 || this.smartSleep(interval)==false {
                                 break
                             }
@@ -427,16 +435,16 @@ func (this *VascScheduler) GetGlobalToken(key string, life int64) (string, error
     _, err := redis.String(redisConn.Do("SET", this.RedisPrefix + "token:" + key, lockValue, "EX", life, "NX")) 
     
 	if err==redis.ErrNil {
-	    //fmt.Sprintf("lockfailed:[%s][%v]\n", key, err)
+	    this.Logger.InfoLog("lockfailed:[%s][%v]\n", key, err)
 		return "", err
 	}
 	
 	if err!=nil {
-	    //fmt.Printf("lockerror:[%s][%v]\n", key, err)
+	    this.Logger.InfoLog("lockerror:[%s][%v]\n", key, err)
 		return "", err
 	}
 	
-	//fmt.Printf("locksuccess:[%s][%s]\n", key, lockValue)
+	this.Logger.InfoLog("locksuccess:[%s][%s]\n", key, lockValue)
 	return lockValue, nil
 }
 

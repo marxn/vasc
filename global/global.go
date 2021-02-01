@@ -41,6 +41,7 @@ type VascApplication struct {
 
 type TaskConfig struct {
     Enable           bool              `json:"enable"`
+    EnableLogger     bool              `json:"enable_logger"`
     LoadTaskDB       string            `json:"load_from_database"`
     GlobalQueueRedis string            `json:"global_queue_redis"`
 }
@@ -58,6 +59,7 @@ type TaskInfo struct {
 
 type ScheduleConfig struct {
     Enable                bool           `json:"enable"`
+    EnableLogger          bool           `json:"enable_logger"`
     LoadScheduleDB        string         `json:"load_from_database"`
     GlobalLockRedis       string         `json:"global_lock_redis"`
 }

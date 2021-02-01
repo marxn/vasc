@@ -70,3 +70,7 @@ func NewVascLogger(projectName string, logLevel int, subsystem string) *VascLogg
     loggerInstance, _ := syslog.New(syslog.LOG_DEBUG|syslog.LOG_LOCAL6, tag)
     return &VascLogger{LogLevel: logLevel, Logger: loggerInstance}
 }
+
+func EmptyLogger() *VascLogger {
+    return &VascLogger{LogLevel: LOG_DEBUG, Logger: nil}
+}

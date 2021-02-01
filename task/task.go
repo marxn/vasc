@@ -12,6 +12,7 @@ import "github.com/marxn/vasc/global"
 import vredis "github.com/marxn/vasc/redis" 
 import "github.com/marxn/vasc/database" 
 import "github.com/marxn/vasc/portal" 
+import "github.com/marxn/vasc/logger"
 
 const VASC_TASK_SCOPE_NATIVE = 1
 const VASC_TASK_SCOPE_HOST   = 2
@@ -29,6 +30,7 @@ type VascTask struct {
     taskWaitGroup      sync.WaitGroup
     
     GivenTaskList    []global.TaskInfo
+    Logger            *logger.VascLogger
 }
 
 type VascTaskDB struct {
@@ -48,6 +50,12 @@ func (this *VascTaskDB) TableName() string {
 
 func (this *VascTask) LoadConfig(config *global.TaskConfig, redisPoolList *vredis.VascRedis, dbList *database.VascDataBase, projectName string) error {
     this.ProjectName = projectName
+    
+    if config.EnableLogger {
+        this.Logger = logger.NewVascLogger(projectName, logger.LOG_DEBUG, "/_task")
+    } else {
+        this.Logger = logger.EmptyLogger()
+    }
     
     if redisPoolList!=nil && config.GlobalQueueRedis!=""{
         redis := redisPoolList.Get(config.GlobalQueueRedis)
@@ -79,9 +87,9 @@ func (this * VascTask) Close() {
 func (this * VascTask) WrapHandler(taskInfo *global.TaskInfo, taskContent *portal.TaskContent) func()error {
     switch taskInfo.Handler.(type) {
         case func(*portal.Portal)error:
-            return portal.MakeTaskHandlerWithContext(this.ProjectName, taskInfo.Key, taskInfo.Handler.(func(*portal.Portal)error), taskContent, context.Background())
+            return portal.MakeTaskHandlerWithContext(this.ProjectName, this.Logger, taskInfo.Key, taskInfo.Handler.(func(*portal.Portal)error), taskContent, context.Background())
         default:
-            return portal.MakeTaskHandlerWithContext(this.ProjectName, taskInfo.Key, InvalidTaskHandler, taskContent, context.Background())
+            return portal.MakeTaskHandlerWithContext(this.ProjectName, this.Logger, taskInfo.Key, InvalidTaskHandler, taskContent, context.Background())
     }
 }
 

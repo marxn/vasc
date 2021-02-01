@@ -51,7 +51,7 @@ func MakeGinRouteWithContext(projectName string, payload func(*Portal), parent c
     }
 }
 
-func MakeSchedulePortalWithContext(projectName string, scheduleKey string, payload func(*Portal) error, parent context.Context) func() error {
+func MakeSchedulePortalWithContext(projectName string, logger *logger.VascLogger, scheduleKey string, payload func(*Portal) error, parent context.Context) func() error {
     // return a wrapper for handling schedule
     return func() error {
         ctx, cancelFunc := context.WithCancel(parent)
@@ -67,9 +67,9 @@ func MakeSchedulePortalWithContext(projectName string, scheduleKey string, paylo
         
         endTime := time.Now().UnixNano()
         if err != nil {
-            vContext.Logger("_schedule").ErrorLog("%s: cost[%d ms], result[%v]", scheduleKey, (endTime - startTime) / 1e6, err)
+            logger.ErrorLog("%s: cost[%d ms], result[%v]", scheduleKey, (endTime - startTime) / 1e6, err)
         } else {
-            vContext.Logger("_schedule").InfoLog("%s: cost[%d ms], result[%v]", scheduleKey, (endTime - startTime) / 1e6, err)
+            logger.InfoLog("%s: cost[%d ms], result[%v]", scheduleKey, (endTime - startTime) / 1e6, err)
         }
         
         vContext.Close()
@@ -77,7 +77,7 @@ func MakeSchedulePortalWithContext(projectName string, scheduleKey string, paylo
     }
 }
 
-func MakeTaskHandlerWithContext(projectName string, taskKey string, payload func(*Portal) error, content *TaskContent, parent context.Context) func() error {
+func MakeTaskHandlerWithContext(projectName string, logger *logger.VascLogger, taskKey string, payload func(*Portal) error, content *TaskContent, parent context.Context) func() error {
     // return a wrapper for handling underlying task
     return func() error {
         ctx, cancelFunc := context.WithCancel(parent)
@@ -94,9 +94,9 @@ func MakeTaskHandlerWithContext(projectName string, taskKey string, payload func
         
         endTime := time.Now().UnixNano()
         if err != nil {
-            vContext.Logger("_task").ErrorLog("%s: cost[%d ms], result[%v]", taskKey, (endTime - startTime) / 1e6, err)
+            logger.ErrorLog("%s: cost[%d ms], result[%v]", taskKey, (endTime - startTime) / 1e6, err)
         } else {
-            vContext.Logger("_task").InfoLog("%s: cost[%d ms], result[%v]", taskKey, (endTime - startTime) / 1e6, err)
+            logger.InfoLog("%s: cost[%d ms], result[%v]", taskKey, (endTime - startTime) / 1e6, err)
         }
         
         vContext.Close()
