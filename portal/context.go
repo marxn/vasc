@@ -16,6 +16,7 @@ type Portal struct {
     Context         context.Context
     containerCtx    interface{}
     LogLevel        int
+    LogSelector     string
     LoggerMap       map[string]*logger.VascLogger
     LoggerMapMutex  sync.Mutex
 }
@@ -34,6 +35,7 @@ func MakeGinRouteWithContext(projectName string, payload func(*Portal), parent c
         
         vContext := NewVascContext(projectName)
         vContext.Context      = ctx
+        vContext.LogSelector  = "request"
         vContext.containerCtx = c
         
         tracer := c.Request.Header.Get("X-Vasc-Request-Tracer")
@@ -59,6 +61,7 @@ func MakeSchedulePortalWithContext(projectName string, enableLogger bool, schedu
         
         vContext := NewVascContext(projectName)
         vContext.Context      = ctx
+        vContext.LogSelector  = "schedule"
         vContext.containerCtx = nil
         
         startTime := time.Now().UnixNano()
@@ -87,6 +90,7 @@ func MakeTaskHandlerWithContext(projectName string, enableLogger bool, taskKey s
         
         vContext := NewVascContext(projectName)
         vContext.Context      = ctx
+        vContext.LogSelector  = "task"
         vContext.containerCtx = content
         
         startTime := time.Now().UnixNano()
@@ -97,7 +101,7 @@ func MakeTaskHandlerWithContext(projectName string, enableLogger bool, taskKey s
         endTime := time.Now().UnixNano()
         if enableLogger {
             if err != nil {
-                 vContext.Logger("_task").ErrorLog("%s: cost[%d ms], result[%v]", taskKey, (endTime - startTime) / 1e6, err)
+                vContext.Logger("_task").ErrorLog("%s: cost[%d ms], result[%v]", taskKey, (endTime - startTime) / 1e6, err)
             } else {
                 vContext.Logger("_task").InfoLog("%s: cost[%d ms], result[%v]", taskKey, (endTime - startTime) / 1e6, err)
             }
@@ -113,6 +117,7 @@ func NewVascContext(projectName string) *Portal {
         ProjectName: projectName,
         LogLevel   : logger.LOG_DEBUG,
         TxID       : rand.Uint64(), 
+        LogSelector: "default",
         LoggerMap  : make(map[string]*logger.VascLogger)}
         
     return result
@@ -120,6 +125,10 @@ func NewVascContext(projectName string) *Portal {
 
 func (ctx *Portal) SetTID(txID uint64) {
     ctx.TxID = txID
+}
+
+func (ctx *Portal) SetDefaultLogger(LogSelector string) {
+    ctx.LogSelector = LogSelector
 }
 
 func (ctx *Portal) HttpContext() *gin.Context {
@@ -144,6 +153,22 @@ func (ctx *Portal) Close() {
 }
 
 func (ctx *Portal) Logger(subsystem string) *logger.VascLogger {
+    ctx.LoggerMapMutex.Lock()
+	defer ctx.LoggerMapMutex.Unlock()
+	
+	result := ctx.LoggerMap[subsystem]
+	if result == nil {
+	    result = logger.NewVascLogger(ctx.ProjectName, ctx.LogLevel, subsystem)
+        ctx.LoggerMap[subsystem] = result
+    }
+    
+    result.TxID = ctx.TxID
+    return result
+}
+
+func (ctx *Portal) DefaultLogger() *logger.VascLogger {
+    subsystem := ctx.LogSelector
+    
     ctx.LoggerMapMutex.Lock()
 	defer ctx.LoggerMapMutex.Unlock()
 	
