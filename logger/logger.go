@@ -2,11 +2,21 @@ package logger
 
 import "fmt"
 import "log/syslog"
+import "sync"
 
 const LOG_DEBUG = 0
 const LOG_INFO  = 1
 const LOG_WARN  = 2
 const LOG_ERROR = 3
+
+// Global logger referenced by default logging
+var loggerMapper    map[string]*VascLogger
+var loggerMapMutex  sync.Mutex
+var projectName     string
+
+func SetProjectName(name string) {
+    projectName = name
+}
 
 type VascLogger struct {
     LogLevel    int
@@ -73,4 +83,38 @@ func NewVascLogger(projectName string, logLevel int, subsystem string) *VascLogg
 
 func EmptyLogger() *VascLogger {
     return &VascLogger{LogLevel: LOG_DEBUG, Logger: nil}
+}
+
+func LogSelector(subsystem string) *VascLogger {
+    loggerMapMutex.Lock()
+	defer loggerMapMutex.Unlock()
+	
+	if loggerMapper == nil {
+	    loggerMapper = make(map[string]*VascLogger)
+    }
+	
+	result := loggerMapper[subsystem]
+	if result == nil {
+	    result = NewVascLogger(projectName, LOG_DEBUG, subsystem)
+        loggerMapper[subsystem] = result
+    }
+    
+    return result
+}
+
+//Some simple encapsulations
+func ErrorLog(format string, v ...interface{}) {
+    LogSelector("main").ErrorLog(format, v...)
+}
+
+func InfoLog(format string, v ...interface{}) {
+    LogSelector("main").InfoLog(format, v...)
+}
+
+func WarnLog(format string, v ...interface{}) {
+    LogSelector("main").WarnLog(format, v...)
+}
+
+func DebugLog(format string, v ...interface{}) {
+    LogSelector("main").DebugLog(format, v...)
 }
