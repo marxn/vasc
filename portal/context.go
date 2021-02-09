@@ -57,14 +57,23 @@ func MakeSchedulePortalWithContext(projectName string, enableLogger bool, schedu
     // return a wrapper for handling schedule
     return func() error {
         ctx, cancelFunc := context.WithCancel(parent)
-        defer cancelFunc()
         
         vContext := NewVascContext(projectName)
         vContext.Context      = ctx
         vContext.LogSelector  = "schedule"
         vContext.containerCtx = nil
         
+        defer func () {
+            if r := recover(); r != nil {
+                vContext.Logger("_schedule").ErrorLog("%s: Panic:[%v]", scheduleKey, r)
+            } else {
+                cancelFunc()
+            }
+            vContext.Close()
+        }()
+        
         startTime := time.Now().UnixNano()
+        
         // Call scheduled func
         err := payload(vContext)
         
@@ -77,7 +86,6 @@ func MakeSchedulePortalWithContext(projectName string, enableLogger bool, schedu
             }
         }
         
-        vContext.Close()
         return err
     }
 }
@@ -86,16 +94,24 @@ func MakeTaskHandlerWithContext(projectName string, enableLogger bool, taskKey s
     // return a wrapper for handling underlying task
     return func() error {
         ctx, cancelFunc := context.WithCancel(parent)
-        defer cancelFunc()
         
         vContext := NewVascContext(projectName)
         vContext.Context      = ctx
         vContext.LogSelector  = "task"
         vContext.containerCtx = content
         
+        defer func () {
+            if r := recover(); r != nil {
+                vContext.Logger("_task").ErrorLog("%s: Panic:[%v]", taskKey, r)
+            } else {
+                cancelFunc()
+            }
+            vContext.Close()
+        }()
+        
         startTime := time.Now().UnixNano()
         
-        // Call scheduled func
+        // Entrance of task
         err := payload(vContext)
         
         endTime := time.Now().UnixNano()
@@ -106,7 +122,7 @@ func MakeTaskHandlerWithContext(projectName string, enableLogger bool, taskKey s
                 vContext.Logger("_task").InfoLog("%s: cost[%d ms], result[%v]", taskKey, (endTime - startTime) / 1e6, err)
             }
         }
-        vContext.Close()
+        
         return err
     }
 }
