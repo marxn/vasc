@@ -31,12 +31,19 @@ func MakeGinRouteWithContext(projectName string, payload func(*Portal), parent c
     // return a wrapper for handling http request
     return func(c *gin.Context) {
         ctx, cancelFunc := context.WithCancel(parent)
-        defer cancelFunc()
         
         vContext := NewVascContext(projectName)
         vContext.Context      = ctx
         vContext.LogSelector  = "request"
         vContext.containerCtx = c
+        
+        defer func () {
+            if r := recover(); r != nil {
+                vContext.Logger("_gin").ErrorLog("Panic:[%v]", r)
+            }
+            cancelFunc()
+            vContext.Close()
+        }()
         
         tracer := c.Request.Header.Get("X-Vasc-Request-Tracer")
         if tracer != "" {
@@ -49,7 +56,6 @@ func MakeGinRouteWithContext(projectName string, payload func(*Portal), parent c
         
         // Do handling
         payload(vContext)
-        vContext.Close()
     }
 }
 
@@ -66,9 +72,8 @@ func MakeSchedulePortalWithContext(projectName string, enableLogger bool, schedu
         defer func () {
             if r := recover(); r != nil {
                 vContext.Logger("_schedule").ErrorLog("%s: Panic:[%v]", scheduleKey, r)
-            } else {
-                cancelFunc()
             }
+            cancelFunc()
             vContext.Close()
         }()
         
@@ -103,9 +108,8 @@ func MakeTaskHandlerWithContext(projectName string, enableLogger bool, taskKey s
         defer func () {
             if r := recover(); r != nil {
                 vContext.Logger("_task").ErrorLog("%s: Panic:[%v]", taskKey, r)
-            } else {
-                cancelFunc()
             }
+            cancelFunc()
             vContext.Close()
         }()
         

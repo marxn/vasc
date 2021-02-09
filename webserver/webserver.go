@@ -28,7 +28,7 @@ func (this *VascWebServer) LoadConfig(config *global.WebServerConfig, projectNam
     
     gin.SetMode(gin.ReleaseMode)
     
-    var engine *gin.Engine
+    engine := gin.New()
     if config.EnableLogger {
         logWriter, err := syslog.New(syslog.LOG_INFO|syslog.LOG_LOCAL6, projectName + "/_gin")
         if err != nil {
@@ -37,8 +37,6 @@ func (this *VascWebServer) LoadConfig(config *global.WebServerConfig, projectNam
         gin.DefaultWriter = logWriter
         gin.DisableConsoleColor()
         
-        engine = gin.New()  
-        engine.Use(gin.Recovery())
         engine.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
     		return fmt.Sprintf("tid[%s] %s %s %s %s %d %s \"%s\"\n",
     		        param.Request.Header.Get("X-Vasc-Request-Tracer"),
@@ -51,9 +49,6 @@ func (this *VascWebServer) LoadConfig(config *global.WebServerConfig, projectNam
     				param.ErrorMessage,
     		)
 	    }))
-    } else {
-        engine = gin.New()  
-        engine.Use(gin.Recovery())  
     }
     
     this.ServiceCore     = engine
