@@ -5,6 +5,7 @@ import "time"
 import "sync"
 import "strconv"
 import "math/rand"
+import "net/http"
 import "context"
 import "errors"
 import "github.com/gin-gonic/gin"
@@ -27,10 +28,17 @@ type TaskContent struct {
     Content         []byte        `json:"content"`
 }
 
-func MakeGinRouteWithContext(projectName string, payload func(*Portal), parent context.Context) func(c *gin.Context) {
+func MakeGinRouteWithContext(projectName string, payload func(*Portal), timeout int) func(c *gin.Context) {
     // return a wrapper for handling http request
     return func(c *gin.Context) {
-        ctx, cancelFunc := context.WithCancel(parent)
+        var ctx context.Context
+        var cancelFunc context.CancelFunc
+        
+        if timeout > 0 {
+            ctx, cancelFunc = context.WithTimeout(context.Background(), time.Second * time.Duration(timeout))
+        } else {
+            ctx, cancelFunc = context.WithCancel(context.Background())
+        }
         
         vContext := NewVascContext(projectName)
         vContext.Context      = ctx
@@ -39,6 +47,7 @@ func MakeGinRouteWithContext(projectName string, payload func(*Portal), parent c
         
         defer func () {
             if r := recover(); r != nil {
+                c.AbortWithStatus(http.StatusInternalServerError)
                 vContext.Logger("_gin").ErrorLog("Panic:[%v]", r)
             }
             cancelFunc()

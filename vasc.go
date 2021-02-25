@@ -247,22 +247,5 @@ func GeneratePidFile(pidfile *string) {
 }
 
 func Wait() {
-    for {
-        s := <- vascSignalChan
-        switch s {
-            case syscall.SIGHUP:
-            case syscall.SIGUSR2:
-                VascReloader()
-            default:
-                return
-        }
-    }
-}
-
-func VascReloader() {
-    if vascInstance==nil {
-        return
-    }
-    vascInstance.Scheduler.ReloadSchedule()
-    vascInstance.Task.ReloadTaskList()
+    <- vascSignalChan
 }

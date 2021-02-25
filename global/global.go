@@ -19,6 +19,7 @@ type VascRoute struct {
     HandlerName    string             `json:"route_handler"`
     RouteHandler   gin.HandlerFunc    `json:"-"`
     LocalFilePath  string             `json:"local_file_path"`
+    Timeout        int                `json:"timeout"`
 }
 
 type VascRouteGroup struct {
