@@ -1,15 +1,18 @@
 package portal
 
-import "fmt"
-import "time"
-import "sync"
-import "strconv"
-import "math/rand"
-import "net/http"
-import "context"
-import "errors"
-import "github.com/gin-gonic/gin"
-import "github.com/marxn/vasc/logger"
+import (
+    "context"
+    "errors"
+    "fmt"
+    "github.com/gin-gonic/gin"
+    "github.com/marxn/vasc/logger"
+    "math/rand"
+    "net/http"
+    "strconv"
+    "strings"
+    "sync"
+    "time"
+)
 
 type Portal struct {
     ProjectName     string
@@ -31,6 +34,12 @@ type TaskContent struct {
 func MakeGinRouteWithContext(projectName string, payload func(*Portal), timeout int) func(c *gin.Context) {
     // return a wrapper for handling http request
     return func(c *gin.Context) {
+        // Return directly if the upper group handler is break.
+        needBreak := c.Request.Header.Get("X-Vasc-Request-Needbreak")
+        if strings.ToLower(needBreak) == "true" {
+            return
+        }
+
         var ctx context.Context
         var cancelFunc context.CancelFunc
         
@@ -62,7 +71,7 @@ func MakeGinRouteWithContext(projectName string, payload func(*Portal), timeout 
             // Save TxID in order to use customized logger
             c.Request.Header.Set("X-Vasc-Request-Tracer", fmt.Sprintf("%016x", vContext.TxID))
         }
-        
+
         // Do handling
         payload(vContext)
     }
@@ -154,6 +163,10 @@ func NewVascContext(projectName string) *Portal {
 
 func (ctx *Portal) SetTID(txID uint64) {
     ctx.TxID = txID
+}
+
+func (ctx *Portal) Break() {
+    ctx.HttpContext().Request.Header.Set("X-Vasc-Request-Needbreak", "true")
 }
 
 func (ctx *Portal) SetDefaultLogger(LogSelector string) {
