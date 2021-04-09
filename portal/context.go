@@ -1,6 +1,9 @@
 package portal
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 import "time"
 import "sync"
 import "strconv"
@@ -15,6 +18,7 @@ type Portal struct {
 	TxID           uint64
 	Context        context.Context
 	containerCtx   interface{}
+	NeedBreak      bool
 	LogLevel       int
 	LoggerMap      map[string]*logger.VascLogger
 	LoggerMapMutex sync.Mutex
@@ -33,6 +37,8 @@ func MakeGinRouteWithContext(projectName string, payload func(*Portal), parent c
 		defer cancelFunc()
 
 		vContext := NewVascContext(projectName)
+		defer vContext.Close()
+
 		vContext.Context = ctx
 		vContext.containerCtx = c
 
@@ -45,9 +51,13 @@ func MakeGinRouteWithContext(projectName string, payload func(*Portal), parent c
 			c.Request.Header.Set("X-Vasc-Request-Tracer", fmt.Sprintf("%016x", vContext.TxID))
 		}
 
+		needBreak := c.Request.Header.Get("X-Vasc-Request-Needbreak")
+		if strings.ToLower(needBreak) == "false" {
+			return
+		}
+
 		// Do handling
 		payload(vContext)
-		vContext.Close()
 	}
 }
 
@@ -58,6 +68,8 @@ func MakeSchedulePortalWithContext(projectName string, scheduleKey string, paylo
 		defer cancelFunc()
 
 		vContext := NewVascContext(projectName)
+		defer vContext.Close()
+
 		vContext.Context = ctx
 		vContext.containerCtx = nil
 
@@ -72,7 +84,6 @@ func MakeSchedulePortalWithContext(projectName string, scheduleKey string, paylo
 			vContext.Logger("_schedule").InfoLog("%s: cost[%d ms], result[%v]", scheduleKey, (endTime-startTime)/1e6, err)
 		}
 
-		vContext.Close()
 		return err
 	}
 }
@@ -84,6 +95,8 @@ func MakeTaskHandlerWithContext(projectName string, taskKey string, payload func
 		defer cancelFunc()
 
 		vContext := NewVascContext(projectName)
+		defer vContext.Close()
+
 		vContext.Context = ctx
 		vContext.containerCtx = content
 
@@ -99,7 +112,6 @@ func MakeTaskHandlerWithContext(projectName string, taskKey string, payload func
 			vContext.Logger("_task").InfoLog("%s: cost[%d ms], result[%v]", taskKey, (endTime-startTime)/1e6, err)
 		}
 
-		vContext.Close()
 		return err
 	}
 }
@@ -110,6 +122,7 @@ func NewVascContext(projectName string) *Portal {
 		ProjectName: projectName,
 		LogLevel:    logger.LOG_DEBUG,
 		TxID:        rand.Uint64(),
+		NeedBreak:   false,
 		LoggerMap:   make(map[string]*logger.VascLogger)}
 
 	return result
@@ -121,6 +134,10 @@ func (ctx *Portal) SetTID(txID uint64) {
 
 func (ctx *Portal) HttpContext() *gin.Context {
 	return ctx.containerCtx.(*gin.Context)
+}
+
+func (ctx *Portal) Break() {
+	ctx.HttpContext().Request.Header.Set("X-Vasc-Request-Needbreak", "true")
 }
 
 func (ctx *Portal) TaskContent() (*TaskContent, error) {
