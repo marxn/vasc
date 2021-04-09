@@ -1,22 +1,22 @@
 package task
 
-import "fmt"
-import "errors"
-import "sync"
-import "time"
-import "context"
-import "encoding/json"
-import "github.com/go-xorm/xorm"
-import "github.com/garyburd/redigo/redis"
-import "github.com/marxn/vasc/global" 
-import vredis "github.com/marxn/vasc/redis" 
-import "github.com/marxn/vasc/database" 
-import "github.com/marxn/vasc/portal" 
-//import "github.com/marxn/vasc/logger"
+import (
+    "context"
+    "encoding/json"
+    "errors"
+    "fmt"
+    "github.com/garyburd/redigo/redis"
+    "github.com/go-xorm/xorm"
+    "github.com/marxn/vasc/database"
+    "github.com/marxn/vasc/global"
+    "github.com/marxn/vasc/portal"
+    vredis "github.com/marxn/vasc/redis"
+    "sync"
+    "time"
+)
 
-const VASC_TASK_SCOPE_NATIVE = 1
-const VASC_TASK_SCOPE_HOST   = 2
-const VASC_TASK_SCOPE_GLOBAL = 3
+const VascTaskScopeNative = 1
+const VascTaskScopeGlobal = 3
 
 type VascTask struct {
     ProjectName        string
@@ -53,11 +53,11 @@ func (this *VascTask) LoadConfig(config *global.TaskConfig, redisPoolList *vredi
     this.EnableLogger = config.EnableLogger
     
     if redisPoolList!=nil && config.GlobalQueueRedis!=""{
-        redis := redisPoolList.Get(config.GlobalQueueRedis)
-        if redis==nil {
+        redisInstance := redisPoolList.Get(config.GlobalQueueRedis)
+        if redisInstance == nil {
             return errors.New("cannot get redis instance for global task")
         }
-        this.RedisConn = redis
+        this.RedisConn = redisInstance
     }
     if dbList!=nil && config.LoadTaskDB!="" {
         dbEngine, err := dbList.GetEngine(config.LoadTaskDB)
@@ -89,14 +89,14 @@ func (this * VascTask) WrapHandler(taskInfo *global.TaskInfo, taskContent *porta
 }
 
 func (this * VascTask) taskHandler(taskInfo *global.TaskInfo) {
-    if taskInfo.Scope==VASC_TASK_SCOPE_NATIVE {
+    if taskInfo.Scope== VascTaskScopeNative {
         for ;this.runnable && !this.needReload; {
             select {
                 case task := <- taskInfo.TaskQueue:
                     if task!=nil {
                         handler := this.WrapHandler(taskInfo, task.(*portal.TaskContent))
                         if handler != nil {
-                            handler()
+                            _ = handler()
                         }
                     }
                 default:
@@ -104,14 +104,14 @@ func (this * VascTask) taskHandler(taskInfo *global.TaskInfo) {
             }
         }
         close(taskInfo.TaskQueue)
-    } else if taskInfo.Scope==VASC_TASK_SCOPE_GLOBAL {
+    } else if taskInfo.Scope== VascTaskScopeGlobal {
         for ;this.runnable && !this.needReload; {
             queueName := taskInfo.Key
             content, err := this.getTaskFromRedis(queueName, 1)
             if content!=nil && err==nil {
                 handler := this.WrapHandler(taskInfo, content)
                 if handler != nil {
-                    handler()
+                    _ = handler()
                 }
             } else if err!=nil {
                 time.Sleep(time.Millisecond * 100)
@@ -144,9 +144,9 @@ func (this * VascTask) launchTask(taskList []global.TaskInfo) error {
         } else {
             value := new(global.TaskInfo)
             *value = info
-            if value.Scope==VASC_TASK_SCOPE_NATIVE {
+            if value.Scope== VascTaskScopeNative {
                 value.TaskQueue = make(chan interface{}, value.QueueSize)
-            } else if value.Scope==VASC_TASK_SCOPE_GLOBAL {
+            } else if value.Scope== VascTaskScopeGlobal {
                 if this.RedisConn==nil {
                     continue
                 }
@@ -162,7 +162,7 @@ func (this * VascTask) launchTask(taskList []global.TaskInfo) error {
 }
 
 func (this *VascTask) Start() error {
-    this.loadTask(this.GivenTaskList)
+    _ = this.loadTask(this.GivenTaskList)
     
     go func() {
         for ;this.runnable; {
@@ -172,7 +172,7 @@ func (this *VascTask) Start() error {
             }
             if this.needReload {
                 this.needReload = false
-                this.loadTask(this.GivenTaskList)
+                _ = this.loadTask(this.GivenTaskList)
             }
             time.Sleep(time.Millisecond * 100)
         }
@@ -240,7 +240,7 @@ func (this * VascTask) LoadTaskFromDB() ([]global.TaskInfo, error) {
 }
 
 func (this * VascTask) Bootstrap() {
-    this.DBConn.Sync2(new(VascTaskDB))
+    _ = this.DBConn.Sync2(new(VascTaskDB))
 }
 
 func (this *VascTask) PushNativeTask(key string, content []byte) error {
@@ -341,13 +341,13 @@ func (this *VascTask) GetGlobalTaskNum(key string) (int, error) {
     
     defer redisConn.Close()
     
-    len, err := redis.Int(redisConn.Do("LLEN", aKey))
+    queueLen, err := redis.Int(redisConn.Do("LLEN", aKey))
     if err!=nil {
         fmt.Println(err)
-        return len, err
+        return queueLen, err
     }
     
-    return len, err
+    return queueLen, err
 }
 
 func (this *VascTask) ReloadTaskList() error {

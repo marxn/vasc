@@ -1,16 +1,18 @@
 package webserver
 
-import "os"
-import "net"
-import "fmt"
-import "time"
-import "net/http"
-import "context"
-import "errors"
-import "log/syslog"
-import "github.com/gin-gonic/gin"
-import "github.com/marxn/vasc/global"
-import "github.com/marxn/vasc/portal"
+import (
+    "context"
+    "errors"
+    "fmt"
+    "github.com/gin-gonic/gin"
+    "github.com/marxn/vasc/global"
+    "github.com/marxn/vasc/portal"
+    "log/syslog"
+    "net"
+    "net/http"
+    "os"
+    "time"
+)
 
 type VascWebServer struct {
     ProjectName     string
@@ -65,8 +67,8 @@ func (this *VascWebServer) LoadConfig(config *global.WebServerConfig, projectNam
 func (this *VascWebServer) Close() {
     ctx, cancel := context.WithTimeout(context.Background(), 2 * time.Second)
 	defer cancel()
-	
-    this.HttpServer.Shutdown(ctx)
+
+    _ = this.HttpServer.Shutdown(ctx)
     close(this.Done)
 }
 
@@ -91,7 +93,7 @@ func (this *VascWebServer) Start() error {
         time.Sleep(time.Second * 3)
         
         location := string(address[5:])
-        os.Remove(location)
+        _ = os.Remove(location)
         
         unixAddr, err := net.ResolveUnixAddr("unix", location)
         if err != nil{

@@ -1,12 +1,13 @@
 package database
 
-import "errors"
-import "fmt"
-import "time"
-import "log/syslog"
-import _ "github.com/go-sql-driver/mysql"
-import "github.com/go-xorm/xorm"
-import "github.com/marxn/vasc/global"
+import (
+    "errors"
+    "fmt"
+    "github.com/go-xorm/xorm"
+    "github.com/marxn/vasc/global"
+    "log/syslog"
+    "time"
+)
 
 type VascDataBase struct {
     Engine map[string]*xorm.Engine
@@ -83,7 +84,7 @@ func (this *VascDataBase) InitDatabase() error {
 
 func (this *VascDataBase) Close() {
     for _, value := range this.Engine {
-        value.Close()
+        _ = value.Close()
     }
 }
 
@@ -98,7 +99,7 @@ func (this *VascDataBase) GetEngine(key string) (*xorm.Engine, error) {
 
 func (this *VascDataBase) GetEngineList() ([]string, error) {
     var result []string
-    for k, _ := range this.Engine {
+    for k := range this.Engine {
         result = append(result, k)
     }
     return result, nil

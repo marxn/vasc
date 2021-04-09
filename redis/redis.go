@@ -1,10 +1,10 @@
 package redis
 
-//import "fmt"
-import "time"
-//import "runtime/debug"
-import "github.com/garyburd/redigo/redis"
-import "github.com/marxn/vasc/global" 
+import (
+    "github.com/garyburd/redigo/redis"
+    "github.com/marxn/vasc/global"
+    "time"
+)
 
 type VascRedis struct {
     RedisPool    map[string]*redis.Pool 
@@ -54,6 +54,6 @@ func (this *VascRedis) Get(key string) *redis.Pool {
 func (this *VascRedis) Close() {
     this.Runnable = false
     for _, value := range this.RedisPool {
-        value.Close()
+        _ = value.Close()
     }
 }

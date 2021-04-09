@@ -35,20 +35,20 @@ func (this *VascLogger) VLogger(tid uint64, level int, s string) {
     
     switch level {
         case LOG_DEBUG:
-            this.Logger.Debug(fmt.Sprintf("[debug] tid[%016x] %s", tid, s))
+            _ = this.Logger.Debug(fmt.Sprintf("[debug] tid[%016x] %s", tid, s))
         case LOG_INFO:
-            this.Logger.Info(fmt.Sprintf("[info] tid[%016x] %s", tid, s))
+            _ = this.Logger.Info(fmt.Sprintf("[info] tid[%016x] %s", tid, s))
         case LOG_WARN:
-            this.Logger.Warning(fmt.Sprintf("[warning] tid[%016x] %s", tid, s))
+            _ = this.Logger.Warning(fmt.Sprintf("[warning] tid[%016x] %s", tid, s))
         case LOG_ERROR:
-            this.Logger.Err(fmt.Sprintf("[error] tid[%016x] %s", tid, s))
+            _ = this.Logger.Err(fmt.Sprintf("[error] tid[%016x] %s", tid, s))
         default:
-            this.Logger.Err(fmt.Sprintf("[error] tid[%016x] %s", tid, s))
+            _ = this.Logger.Err(fmt.Sprintf("[error] tid[%016x] %s", tid, s))
     }
 }
 
 func (this *VascLogger) Close() {
-    this.Logger.Close()
+    _ = this.Logger.Close()
 }
 
 func (this *VascLogger) ErrorLog(format string, v ...interface{}) {

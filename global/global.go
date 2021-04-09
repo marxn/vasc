@@ -52,7 +52,7 @@ type TaskInfo struct {
     Type        uint64                  `json:"type"`
     Handler     interface{}             `json:"-"`        // To generate a well-contexted handler dynamicly
     HandlerName string                  `json:"handler"`
-    TaskQueue   chan(interface{})       `json:"-"`
+    TaskQueue   chan interface{}        `json:"-"`
     QueueSize   int64                   `json:"queue_size"`
     HandlerNum  int64                   `json:"handler_num"`
     Scope       int64                   `json:"scope"`

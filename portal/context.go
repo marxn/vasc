@@ -180,7 +180,7 @@ func (ctx *Portal) HttpContext() *gin.Context {
 func (ctx *Portal) TaskContent() (*TaskContent, error) {
     taskContent := ctx.containerCtx.(*TaskContent)
     if taskContent == nil {
-        return nil, errors.New("Invalid task")
+        return nil, errors.New("invalid task")
     }
     return taskContent, nil
 }

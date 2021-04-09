@@ -6,17 +6,19 @@
 
 package localcache
 
-import "os"
-import "fmt"
-import "time"
-import "errors"
-import "io/ioutil"
-import "encoding/hex"
-import "crypto/md5"
-import "math/rand"
-import "github.com/garyburd/redigo/redis"
-import "github.com/marxn/vasc/global" 
-import vredis "github.com/marxn/vasc/redis" 
+import (
+    "crypto/md5"
+    "encoding/hex"
+    "errors"
+    "fmt"
+    "github.com/garyburd/redigo/redis"
+    "github.com/marxn/vasc/global"
+    vredis "github.com/marxn/vasc/redis"
+    "io/ioutil"
+    "math/rand"
+    "os"
+    "time"
+)
 
 const mod_factor1 = 13
 const mod_factor2 = 101
@@ -40,11 +42,11 @@ func (this * CacheManager) LoadConfig(config *global.CacheConfigFile, redisPoolL
     rand.Seed(time.Now().UnixNano())
     this.ProjectName = projectName
     if redisPoolList!=nil && config.CacheSourceRedis!=""{
-        redis := redisPoolList.Get(config.CacheSourceRedis)
-        if redis==nil {
+        redisInstance := redisPoolList.Get(config.CacheSourceRedis)
+        if redisInstance == nil {
             return errors.New("cannot get redis instance for cache sync")
         }
-        this.RedisConn = redis
+        this.RedisConn = redisInstance
     }
     this.FSRoot      = config.CacheRootPath + "/" + projectName
     this.RedisPrefix = fmt.Sprintf("VASC:%s:CACHE:", projectName)
@@ -76,7 +78,7 @@ func (this * CacheManager) ReadKV(key string, needSync bool) (string, error) {
         if err!=nil {
             return "", err
         }
-        this.SaveToFS(key, value, this.Expiration[key])
+        _ = this.SaveToFS(key, value, this.Expiration[key])
     }
 
     return value, err
@@ -91,7 +93,7 @@ func (this * CacheManager) SaveToFS(key string, value string, expiration int64) 
     keyFile  := fileHash(key)
 
     path := fmt.Sprintf("%s/%d/%d/%d", this.FSRoot, keyHash1, keyHash2, keyHash3)
-    os.MkdirAll(path, os.ModePerm)
+    _ = os.MkdirAll(path, os.ModePerm)
 
     tempFilePath := fmt.Sprintf("%s/%s.%d", path, keyFile, randNum)
     formalFilePath := fmt.Sprintf("%s/%s", path, keyFile)
@@ -128,7 +130,7 @@ func (this * CacheManager) GetFromFS(key string) (string, error) {
     keyExprTime := this.Expiration[key]
 
     if keyExprTime != 0 && statRet.ModTime().Unix() - time.Now().Unix() > keyExprTime {
-        os.Remove(valueFilePath)
+        _ = os.Remove(valueFilePath)
         return "", errors.New("value expired")
     }
 
