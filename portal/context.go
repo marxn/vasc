@@ -253,25 +253,21 @@ func (ctx *Portal) Exit() {
 }
 
 func (ctx *Portal) ErrorLogAndReturnJSON(code int, format string, v ...interface{}) {
-    message := fmt.Sprintf(format, v)
-    ctx.DefaultErrorLog(message)
-    ctx.HttpContext().JSON(code, gin.H{"code": code, "message": message})
+    ctx.DefaultErrorLog(format, v)
+    ctx.HttpContext().JSON(code, gin.H{"code": code, "message": fmt.Sprintf(format, v)})
 }
 
 func (ctx *Portal) InfoLogAndReturnJSON(code int, format string, v ...interface{}) {
-    message := fmt.Sprintf(format, v)
-    ctx.DefaultInfoLog(message)
-    ctx.HttpContext().JSON(code, gin.H{"code": code, "message": message})
+    ctx.DefaultInfoLog(format, v)
+    ctx.HttpContext().JSON(code, gin.H{"code": code, "message": fmt.Sprintf(format, v)})
 }
 
 func (ctx *Portal) WarnLogAndReturnJSON(code int, format string, v ...interface{}) {
-    message := fmt.Sprintf(format, v)
-    ctx.DefaultWarnLog(message)
-    ctx.HttpContext().JSON(code, gin.H{"code": code, "message": message})
+    ctx.DefaultWarnLog(format, v)
+    ctx.HttpContext().JSON(code, gin.H{"code": code, "message": fmt.Sprintf(format, v)})
 }
 
 func (ctx *Portal) DebugLogAndReturnJSON(code int, format string, v ...interface{}) {
-    message := fmt.Sprintf(format, v)
-    ctx.DefaultDebugLog(message)
-    ctx.HttpContext().JSON(code, gin.H{"code": code, "message": message})
+    ctx.DefaultDebugLog(format, v)
+    ctx.HttpContext().JSON(code, gin.H{"code": code, "message": fmt.Sprintf(format, v)})
 }
