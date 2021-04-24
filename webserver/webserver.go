@@ -156,7 +156,7 @@ func (this *VascWebServer) LoadModules(modules []global.VascRoute, groups []glob
         if handlerFunc!=nil {
             switch handlerFunc.(type) {
                 case func(*portal.Portal):
-                    modules[i].RouteHandler = portal.MakeGinRouteWithContext(this.ProjectName, handlerFunc.(func(*portal.Portal)), timeout)
+                    modules[i].RouteHandler = portal.MakeGinRouteWithContext(this.ProjectName, handlerName, handlerFunc.(func(*portal.Portal)), timeout)
                 case func(*gin.Context):
                     modules[i].RouteHandler = handlerFunc.(func(*gin.Context))
                 default:
@@ -186,7 +186,7 @@ func (this *VascWebServer) LoadModules(modules []global.VascRoute, groups []glob
             if groupMiddleware!=nil {
                 switch groupMiddleware.(type) {
                     case func(*portal.Portal):
-                        groupCore.Use(portal.MakeGinRouteWithContext(this.ProjectName, groupMiddleware.(func(*portal.Portal)), 0))
+                        groupCore.Use(portal.MakeGinRouteWithContext(this.ProjectName, groupInfo.MiddlewareName, groupMiddleware.(func(*portal.Portal)), 0))
                     case func(*gin.Context):
                         groupCore.Use(groupMiddleware.(func(*gin.Context)))
                     default:

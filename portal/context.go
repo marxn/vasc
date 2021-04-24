@@ -19,6 +19,7 @@ type Portal struct {
     TxID            uint64
     Context         context.Context
     containerCtx    interface{}
+    HandlerName     string
     LogLevel        int
     LogSelector     string
     LoggerMap       map[string]*logger.VascLogger
@@ -31,10 +32,10 @@ type TaskContent struct {
     Content         []byte        `json:"content"`
 }
 
-func MakeGinRouteWithContext(projectName string, payload func(*Portal), timeout int) func(c *gin.Context) {
+func MakeGinRouteWithContext(projectName string, handlerName string, payload func(*Portal), timeout int) func(c *gin.Context) {
     // return a wrapper for handling http request
     return func(c *gin.Context) {
-        // Return directly if the upper group handler is break.
+        // Return directly if the upper group handler has broke.
         needBreak := c.Request.Header.Get("X-Vasc-Request-Needbreak")
         if strings.ToLower(needBreak) == "true" {
             return
@@ -42,18 +43,19 @@ func MakeGinRouteWithContext(projectName string, payload func(*Portal), timeout 
 
         var ctx context.Context
         var cancelFunc context.CancelFunc
-        
+
         if timeout > 0 {
             ctx, cancelFunc = context.WithTimeout(context.Background(), time.Second * time.Duration(timeout))
         } else {
             ctx, cancelFunc = context.WithCancel(context.Background())
         }
-        
+
         vContext := NewVascContext(projectName)
+        vContext.HandlerName  = handlerName
         vContext.Context      = ctx
         vContext.LogSelector  = "request"
         vContext.containerCtx = c
-        
+
         defer func () {
             if r := recover(); r != nil {
                 c.AbortWithStatus(http.StatusInternalServerError)
@@ -62,7 +64,7 @@ func MakeGinRouteWithContext(projectName string, payload func(*Portal), timeout 
             cancelFunc()
             vContext.Close()
         }()
-        
+
         tracer := c.Request.Header.Get("X-Vasc-Request-Tracer")
         if tracer != "" {
             txID, _ := strconv.ParseUint(tracer, 16, 64)
@@ -81,12 +83,13 @@ func MakeSchedulePortalWithContext(projectName string, enableLogger bool, schedu
     // return a wrapper for handling schedule
     return func() error {
         ctx, cancelFunc := context.WithCancel(parent)
-        
+
         vContext := NewVascContext(projectName)
+        vContext.HandlerName  = scheduleKey
         vContext.Context      = ctx
         vContext.LogSelector  = "schedule"
         vContext.containerCtx = nil
-        
+
         defer func () {
             if r := recover(); r != nil {
                 vContext.Logger("_schedule").ErrorLog("%s: Panic:[%v]", scheduleKey, r)
@@ -94,12 +97,12 @@ func MakeSchedulePortalWithContext(projectName string, enableLogger bool, schedu
             cancelFunc()
             vContext.Close()
         }()
-        
+
         startTime := time.Now().UnixNano()
-        
+
         // Call scheduled func
         err := payload(vContext)
-        
+
         endTime := time.Now().UnixNano()
         if enableLogger {
             if err != nil {
@@ -108,7 +111,7 @@ func MakeSchedulePortalWithContext(projectName string, enableLogger bool, schedu
                 vContext.Logger("_schedule").InfoLog("%s: cost[%d ms], result[%v]", scheduleKey, (endTime - startTime) / 1e6, err)
             }
         }
-        
+
         return err
     }
 }
@@ -119,6 +122,7 @@ func MakeTaskHandlerWithContext(projectName string, enableLogger bool, taskKey s
         ctx, cancelFunc := context.WithCancel(parent)
         
         vContext := NewVascContext(projectName)
+        vContext.HandlerName  = taskKey
         vContext.Context      = ctx
         vContext.LogSelector  = "task"
         vContext.containerCtx = content
@@ -165,8 +169,12 @@ func (ctx *Portal) SetTID(txID uint64) {
     ctx.TxID = txID
 }
 
-func (ctx *Portal) Break() {
-    ctx.HttpContext().Request.Header.Set("X-Vasc-Request-Needbreak", "true")
+func (ctx *Portal) NeedBreak(need bool) {
+    value := "false"
+    if need {
+        value = "true"
+    }
+    ctx.HttpContext().Request.Header.Set("X-Vasc-Request-Needbreak", value)
 }
 
 func (ctx *Portal) SetDefaultLogger(LogSelector string) {
@@ -222,4 +230,48 @@ func (ctx *Portal) DefaultLogger() *logger.VascLogger {
     
     result.TxID = ctx.TxID
     return result
+}
+
+func (ctx *Portal) DefaultInfoLog(format string, v ...interface{}) {
+    ctx.DefaultLogger().InfoLog(ctx.HandlerName + ": " + format, v)
+}
+
+func (ctx *Portal) DefaultErrorLog(format string, v ...interface{}) {
+    ctx.DefaultLogger().ErrorLog(ctx.HandlerName + ": " + format, v)
+}
+
+func (ctx *Portal) DefaultDebugLog(format string, v ...interface{}) {
+    ctx.DefaultLogger().DebugLog(ctx.HandlerName + ": " + format, v)
+}
+
+func (ctx *Portal) DefaultWarnLog(format string, v ...interface{}) {
+    ctx.DefaultLogger().WarnLog(ctx.HandlerName + ": " + format, v)
+}
+
+func (ctx *Portal) Exit() {
+    panic("VASC_HANDLER_EXIT")
+}
+
+func (ctx *Portal) ErrorLogAndReturnJSON(code int, format string, v ...interface{}) {
+    message := fmt.Sprintf(format, v)
+    ctx.DefaultErrorLog(message)
+    ctx.HttpContext().JSON(code, gin.H{"code": code, "message": message})
+}
+
+func (ctx *Portal) InfoLogAndReturnJSON(code int, format string, v ...interface{}) {
+    message := fmt.Sprintf(format, v)
+    ctx.DefaultInfoLog(message)
+    ctx.HttpContext().JSON(code, gin.H{"code": code, "message": message})
+}
+
+func (ctx *Portal) WarnLogAndReturnJSON(code int, format string, v ...interface{}) {
+    message := fmt.Sprintf(format, v)
+    ctx.DefaultWarnLog(message)
+    ctx.HttpContext().JSON(code, gin.H{"code": code, "message": message})
+}
+
+func (ctx *Portal) DebugLogAndReturnJSON(code int, format string, v ...interface{}) {
+    message := fmt.Sprintf(format, v)
+    ctx.DefaultDebugLog(message)
+    ctx.HttpContext().JSON(code, gin.H{"code": code, "message": message})
 }
