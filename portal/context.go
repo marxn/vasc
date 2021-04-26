@@ -271,3 +271,23 @@ func (ctx *Portal) DebugLogAndReturnJSON(code int, format string, v ...interface
     ctx.DefaultDebugLog(format, v...)
     ctx.HttpContext().JSON(code, gin.H{"code": code, "message": fmt.Sprintf(format, v...)})
 }
+
+func (ctx *Portal) ErrorLogAndReturnString(code int, format string, v ...interface{}) {
+    ctx.DefaultErrorLog(format, v...)
+    ctx.HttpContext().String(code, fmt.Sprintf(format, v...))
+}
+
+func (ctx *Portal) InfoLogAndReturnString(code int, format string, v ...interface{}) {
+    ctx.DefaultInfoLog(format, v...)
+    ctx.HttpContext().String(code, fmt.Sprintf(format, v...))
+}
+
+func (ctx *Portal) WarnLogAndReturnString(code int, format string, v ...interface{}) {
+    ctx.DefaultWarnLog(format, v...)
+    ctx.HttpContext().String(code, fmt.Sprintf(format, v...))
+}
+
+func (ctx *Portal) DebugLogAndReturnString(code int, format string, v ...interface{}) {
+    ctx.DefaultDebugLog(format, v...)
+    ctx.HttpContext().String(code, fmt.Sprintf(format, v...))
+}
