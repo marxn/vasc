@@ -3,10 +3,11 @@ package database
 import (
     "errors"
     "fmt"
-    "github.com/go-xorm/xorm"
     "github.com/marxn/vasc/global"
     "log/syslog"
     "time"
+    "xorm.io/xorm"
+    "xorm.io/xorm/log"
 )
 
 type VascDataBase struct {
@@ -19,14 +20,15 @@ func (this *VascDataBase) LoadConfig(config *global.DatabaseConfig, projectName 
         return errors.New("empty database config")
     }
     
-    var logger *xorm.SimpleLogger
+    var logger *log.SimpleLogger
+
     if config.EnableLogger {
         logWriter, err := syslog.New(syslog.LOG_INFO|syslog.LOG_LOCAL6, projectName + "/_xorm")
         if err != nil {
             return err
         }
         
-        logger = xorm.NewSimpleLogger(logWriter)
+        logger = log.NewSimpleLogger(logWriter)
         logger.ShowSQL(true)
     }
     

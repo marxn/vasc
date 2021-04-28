@@ -6,7 +6,7 @@ import (
     "errors"
     "fmt"
     "github.com/garyburd/redigo/redis"
-    "github.com/go-xorm/xorm"
+    "xorm.io/xorm"
     "github.com/marxn/vasc/database"
     "github.com/marxn/vasc/global"
     "github.com/marxn/vasc/portal"
