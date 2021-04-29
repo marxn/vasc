@@ -10,6 +10,10 @@ import (
     "xorm.io/xorm/log"
 )
 
+type VascDBEngine struct {
+    Engine *xorm.Engine
+}
+
 type VascDataBase struct {
     Engine map[string]*xorm.Engine
 }
@@ -97,6 +101,17 @@ func (this *VascDataBase) GetEngine(key string) (*xorm.Engine, error) {
     }
 
     return nil, errors.New("cannot find database: " + key)
+}
+
+func (this *VascDataBase) GetVascDBEngine(key string) (*VascDBEngine, error) {
+    engine, err := this.GetEngine(key)
+    if err != nil {
+        return nil, err
+    }
+
+    return &VascDBEngine {
+        Engine: engine,
+    }, nil
 }
 
 func (this *VascDataBase) GetEngineList() ([]string, error) {
